@@ -40,12 +40,11 @@ const userSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-userSchema.pre("validate", function syncProvider(next) {
+userSchema.pre("validate", function syncProvider() {
   const provider = this.provider || this.authProvider || "google";
   this.provider = provider;
   this.authProvider = this.authProvider || provider;
   this.avatar = this.avatar || this.profileImage || "";
-  next();
 });
 
 module.exports = mongoose.models.User || mongoose.model("User", userSchema);
