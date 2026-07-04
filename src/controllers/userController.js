@@ -705,4 +705,71 @@ exports.deleteAddress = asyncHandler(async (req, res) => {
   return res.json({ success: true, addresses: user.addresses });
 });
 
+const { verifyFirebaseIdToken } = require("../utils/firebaseVerifier");
+
+exports.authenticateFirebaseUser = asyncHandler(async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Missing authorization token" });
+  }
+
+  const idToken = authHeader.split("Bearer ")[1];
+
+  try {
+    const decodedToken = await verifyFirebaseIdToken(idToken, "vastraaura-prod");
+    const { name, email, picture } = decodedToken;
+
+    let user;
+
+    if (!isDbConnected()) {
+      user = findUserByEmail(email);
+      if (!user) {
+        user = await createEmailUser({
+          name: name || "Google User",
+          email,
+          password: "firebase_sso_oauth_user_password_bypass",
+        });
+      }
+    } else {
+      user = await User.findOne({ email });
+      if (!user) {
+        user = await User.create({
+          name: name || "Google User",
+          email,
+          avatar: picture || "",
+          authProvider: "google",
+          provider: "google",
+          role: resolveRole(email),
+        });
+      } else {
+        let needsSave = false;
+        const expectedRole = resolveRole(email);
+        if (user.role !== expectedRole) {
+          user.role = expectedRole;
+          needsSave = true;
+        }
+        if (!user.avatar && picture) {
+          user.avatar = picture;
+          needsSave = true;
+        }
+        if (needsSave) {
+          await user.save();
+        }
+      }
+    }
+
+    const token = sendAuthCookie(res, user);
+
+    return res.json({
+      success: true,
+      message: "Authenticated successfully",
+      user: serializeUser(user),
+      token,
+    });
+  } catch (error) {
+    console.error("[VastraAura Backend] Firebase authentication failed:", error);
+    return res.status(401).json({ error: "Invalid Firebase authentication token" });
+  }
+});
+
 exports.requireAuth = requireAuth;

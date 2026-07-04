@@ -7,6 +7,7 @@ router.post("/register", controller.registerWithEmail);
 router.post("/login", controller.loginWithEmail);
 router.post("/forgot-password", controller.forgotPassword);
 router.post("/reset-password", controller.resetPassword);
+router.post("/auth/firebase", controller.authenticateFirebaseUser);
 router.post("/logout", controller.logout);
 router.get("/", requireAuth, adminAuth, controller.getUsers);
 router.get("/me", requireAuth, controller.getMe);
