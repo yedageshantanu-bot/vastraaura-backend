@@ -72,15 +72,16 @@ const verifyFirebaseIdToken = async (token, projectId) => {
         algorithms: ["RS256"],
         audience: projectId,
         issuer: `https://securetoken.google.com/${projectId}`,
+        clockTolerance: 300, // Allow up to 5 minutes of clock skew
       },
       (err, decoded) => {
         if (err) {
           return reject(err);
         }
 
-        // Validate extra claims
+        // Validate extra claims with tolerance for clock skew
         const now = Math.floor(Date.now() / 1000);
-        if (decoded.auth_time > now) {
+        if (decoded.auth_time > now + 300) {
           return reject(new Error("Token auth_time is in the future"));
         }
 
