@@ -288,11 +288,17 @@ const formatOrder = (order) => ({
 
 exports.getOrders = asyncHandler(async (req, res) => {
   if (!isDbConnected()) {
-    const orders = req.auth?.role === "admin" ? store.orders : getOrdersForUser(req.userId);
+    const orders = (req.auth?.role === "admin" ? store.orders : getOrdersForUser(req.userId))
+      .filter((order) => order.paymentStatus !== "Pending");
     return res.json({ success: true, count: orders.length, orders });
   }
 
-  const query = req.auth?.role === "admin" ? {} : { userId: req.userId };
+  const baseQuery = req.auth?.role === "admin" ? {} : { userId: req.userId };
+  const query = {
+    ...baseQuery,
+    paymentStatus: { $ne: "Pending" },
+  };
+
   const orders = await Order.find(query)
     .populate("userId", "name email profileImage role")
     .populate("products.productId", "title images thumbnail discountPrice")
@@ -304,11 +310,14 @@ exports.getOrders = asyncHandler(async (req, res) => {
 
 exports.getMyOrders = asyncHandler(async (req, res) => {
   if (!isDbConnected()) {
-    const orders = getOrdersForUser(req.userId);
+    const orders = getOrdersForUser(req.userId).filter((order) => order.paymentStatus !== "Pending");
     return res.json({ success: true, count: orders.length, orders });
   }
 
-  const orders = await Order.find({ userId: req.userId })
+  const orders = await Order.find({
+    userId: req.userId,
+    paymentStatus: { $ne: "Pending" },
+  })
     .populate("products.productId", "title images thumbnail discountPrice")
     .sort({ createdAt: -1 })
     .lean();
@@ -332,6 +341,10 @@ exports.getOrder = asyncHandler(async (req, res) => {
       return res.status(403).json({ error: "Order access denied" });
     }
 
+    if (order.paymentStatus === "Pending") {
+      return res.status(404).json({ error: "Order not found" });
+    }
+
     return res.json({ success: true, order });
   }
 
@@ -341,6 +354,10 @@ exports.getOrder = asyncHandler(async (req, res) => {
     .lean();
 
   if (!order) {
+    return res.status(404).json({ error: "Order not found" });
+  }
+
+  if (order.paymentStatus === "Pending") {
     return res.status(404).json({ error: "Order not found" });
   }
 
