@@ -86,7 +86,7 @@ exports.handleGoogleCallback = [
   }),
   asyncHandler(async (req, res) => {
     const user = req.user;
-    sendAuthCookie(res, user);
+    const token = sendAuthCookie(res, user);
 
     const oauthState = req.oauthState || {};
 
@@ -102,13 +102,14 @@ exports.handleGoogleCallback = [
     const wantsJson = oauthState.popup === false || req.query.popup === "false";
 
     if (wantsJson) {
-      return res.json({ success: true, user: serializeUser(user), nextPath });
+      return res.json({ success: true, user: serializeUser(user), token, nextPath });
     }
 
     res.send(
       getPopupHtml({
         success: true,
         message: "Signed in successfully",
+        token,
         nextPath,
       }),
     );
@@ -169,12 +170,13 @@ exports.registerWithEmail = asyncHandler(async (req, res) => {
     }
 
     const user = await createEmailUser({ name, email, password });
-    sendAuthCookie(res, user);
+    const token = sendAuthCookie(res, user);
 
     return res.status(201).json({
       success: true,
       message: "Account created successfully",
       user: serializeUser(user),
+      token,
     });
   }
 
@@ -192,12 +194,13 @@ exports.registerWithEmail = asyncHandler(async (req, res) => {
     role: resolveRole(email),
   });
 
-  sendAuthCookie(res, user);
+  const token = sendAuthCookie(res, user);
 
   return res.status(201).json({
     success: true,
     message: "Account created successfully",
     user: serializeUser(user),
+    token,
   });
 });
 
@@ -220,12 +223,13 @@ exports.loginWithEmail = asyncHandler(async (req, res) => {
       return res.status(401).json({ error: "Invalid email or password" });
     }
 
-    sendAuthCookie(res, user);
+    const token = sendAuthCookie(res, user);
 
     return res.json({
       success: true,
       message: "Signed in successfully",
       user: serializeUser(user),
+      token,
     });
   }
 
@@ -242,12 +246,13 @@ exports.loginWithEmail = asyncHandler(async (req, res) => {
   user.role = resolveRole(user.email);
   await user.save();
 
-  sendAuthCookie(res, user);
+  const token = sendAuthCookie(res, user);
 
   return res.json({
     success: true,
     message: "Signed in successfully",
     user: serializeUser(user),
+    token,
   });
 });
 
