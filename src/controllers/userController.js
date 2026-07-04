@@ -768,7 +768,7 @@ exports.authenticateFirebaseUser = asyncHandler(async (req, res) => {
     });
   } catch (error) {
     console.error("[VastraAura Backend] Firebase authentication failed:", error);
-    return res.status(401).json({ error: "Invalid Firebase authentication token" });
+    return res.status(401).json({ error: `Invalid Firebase authentication token: ${error.message}` });
   }
 });
 
