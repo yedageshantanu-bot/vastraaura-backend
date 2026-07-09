@@ -126,7 +126,7 @@ const sanitizeInternalPath = (value, fallback = "/") => {
   }
 };
 
-const getPopupHtml = ({ success, message, nextPath = "/" }) => `<!doctype html>
+const getPopupHtml = ({ success, message, token, nextPath = "/" }) => `<!doctype html>
 <html lang="en">
   <head><meta charset="utf-8"><title>VastraAura Auth</title></head>
   <body>
@@ -135,6 +135,7 @@ const getPopupHtml = ({ success, message, nextPath = "/" }) => `<!doctype html>
         var payload = ${JSON.stringify({
           success,
           message,
+          token,
           nextPath: sanitizeInternalPath(nextPath, "/"),
         })};
         try {

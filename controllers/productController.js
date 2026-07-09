@@ -93,6 +93,7 @@ const findProductByIdentifier = async (identifier, includeInactive = true) => {
 			.sort({ displayOrder: 1, createdAt: -1 })
 			.skip(index)
 			.populate("createdBy", "name email role")
+			.populate("reviews.user", "name email avatar")
 			.lean();
 	}
 
@@ -102,6 +103,7 @@ const findProductByIdentifier = async (identifier, includeInactive = true) => {
 
 	return Product.findOne(query)
 		.populate("createdBy", "name email role")
+		.populate("reviews.user", "name email avatar")
 		.lean();
 };
 
@@ -363,7 +365,7 @@ exports.getProducts = asyncHandler(async (req, res) => {
 	}
 
 	if (req.query.category) {
-		filter.category = req.query.category;
+		filter.category = { $regex: new RegExp("^" + req.query.category + "$", "i") };
 	}
 
 	if (mongoose.connection.readyState !== 1) {
@@ -764,5 +766,51 @@ exports.deleteProduct = asyncHandler(async (req, res) => {
 	res.json({
 		success: true,
 		message: "Product deleted successfully",
+	});
+});
+
+exports.addProductReview = asyncHandler(async (req, res) => {
+	const { rating, comment } = req.body;
+	const productId = req.params.id;
+
+	if (!rating) {
+		return res.status(400).json({ success: false, message: "Rating is required" });
+	}
+
+	const product = await Product.findById(productId);
+	if (!product) {
+		return res.status(404).json({ success: false, message: "Product not found" });
+	}
+
+	// Add new review to the reviews array
+	const newReview = {
+		user: req.userId,
+		rating: Number(rating),
+		comment: comment || "",
+	};
+
+	product.reviews = product.reviews || [];
+	product.reviews.push(newReview);
+
+	// Recompute ratings average
+	const count = product.reviews.length;
+	const average = product.reviews.reduce((sum, r) => sum + r.rating, 0) / count;
+	product.ratings = {
+		average: Number(average.toFixed(1)),
+		count: count
+	};
+
+	await product.save();
+
+	// Populate user details for returning updated array
+	const updatedProduct = await Product.findById(productId)
+		.populate("reviews.user", "name email avatar")
+		.lean();
+
+	res.status(201).json({
+		success: true,
+		message: "Review added successfully",
+		ratings: updatedProduct.ratings,
+		reviews: updatedProduct.reviews,
 	});
 });

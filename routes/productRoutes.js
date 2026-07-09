@@ -13,6 +13,7 @@ router.put("/:id/thumbnail", requireAuth, adminAuth, controller.setThumbnailImag
 router.patch("/:id/featured", requireAuth, adminAuth, controller.toggleFeaturedProduct);
 router.patch("/:id/active", requireAuth, adminAuth, controller.toggleActiveProduct);
 router.get("/:id", controller.getProduct);
+router.post("/:id/reviews", requireAuth, controller.addProductReview);
 router.delete("/:id", requireAuth, adminAuth, controller.deleteProduct);
 
 module.exports = router;
