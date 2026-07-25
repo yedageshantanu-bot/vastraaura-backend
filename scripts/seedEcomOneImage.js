@@ -40,8 +40,26 @@ const toysData = [
   { title: "Sweet Dream Bunny Plush", desc: "An incredibly soft bunny plush with long floppy ears and a pastel pink stitched nose." }
 ];
 
+const sweetsData = [
+  { file: "IMG_4057.JPG.jpeg", title: "Cadbury Silk Heart Blush Couple Bar", desc: "Romantic couple special heart-pop Silk chocolate bar. The sweetest expression of affection." },
+  { file: "IMG_4062.JPG.jpeg", title: "Ferrero Rocher & Dark Romance Box", desc: "Exquisite golden-wrapped hazelnut pralines paired with rich dark cocoa chocolate truffles." },
+  { file: "IMG_4055.JPG.jpeg", title: "KitKat Luxury Gift Box Collection", desc: "A gorgeous luxury gift box presentation of classic & specialty chocolate bars." },
+  { file: "IMG_4054.JPG.jpeg", title: "Cadbury Silk Hazelnut Bliss", desc: "Rich, velvety Cadbury Dairy Milk Silk loaded with crunchy whole roasted hazelnuts." },
+  { file: "IMG_4058.JPG.jpeg", title: "Cadbury Silk Oreo Crunch Chocolate", desc: "Crispy dark Oreo cookie crunch enveloped in silky melt-in-mouth Cadbury chocolate." },
+  { file: "IMG_4056.JPG.jpeg", title: "Cadbury Silk Roasted Almond", desc: "Smooth melting Cadbury Silk studded with slow-roasted Californian almonds." },
+  { file: "IMG_4061.JPG.jpeg", title: "Sunfeast Dark Fantasy Choco Fills Box", desc: "Crispy dark chocolate cookie exterior with a rich, warm molten chocolate center." },
+  { file: "IMG_4063.JPG.jpeg", title: "Artisanal Handcrafted Silk Truffles", desc: "Handcrafted gourmet chocolate truffles presented in an elegant velvet gift tray." },
+  { file: "IMG_4059.JPG.jpeg", title: "Snickers Peanut Caramel Pack", desc: "Packed with roasted peanuts, gooey caramel, and soft nougat coated in milk chocolate." },
+  { file: "IMG_4060.JPG.jpeg", title: "Snickers Almond Crunch Energy Bar", desc: "Satisfy your hunger with real crunchy almonds, rich caramel, and thick milk chocolate." },
+  { file: "IMG_4049.WEBP", title: "KitKat Classic Crisp Wafer Pack", desc: "Classic crisp wafer fingers enveloped in smooth milk chocolate. Have a break, have a KitKat." },
+  { file: "IMG_4050.WEBP", title: "KitKat King Size Crunchy Bar", desc: "King size crunch pack for ultimate chocolate lovers. Extra thick cocoa coating over crunchy wafer." },
+  { file: "IMG_4051.WEBP", title: "KitKat Minis Shareable Pouch", desc: "A fun shareable pouch filled with individually wrapped mini KitKat bites. Perfect for movie dates." },
+  { file: "IMG_4052.WEBP", title: "KitKat Chunky Finger Bar", desc: "Single thick chunky bar with extra wafer crunch and creamy chocolate wrap." },
+  { file: "IMG_4053.WEBP", title: "KitKat Multi-Pack Festive Edition", desc: "Festive gift pack filled with multiple full-size KitKat chocolate bars." }
+];
+
 // Helper to generate unique descriptions and names dynamically if we run out of list items
-function generateProductInfo(category, index) {
+function generateProductInfo(category, index, fileName) {
   let list = [];
   let prefix = "";
   if (category === "Flowers") {
@@ -53,6 +71,13 @@ function generateProductInfo(category, index) {
   } else if (category === "Toys") {
     list = toysData;
     prefix = "Cuddly Cotton Teddy";
+  } else if (category === "Chocolates") {
+    if (fileName) {
+      const found = sweetsData.find(s => s.file.toLowerCase() === fileName.toLowerCase());
+      if (found) return found;
+    }
+    list = sweetsData;
+    prefix = "Artisanal Chocolate";
   }
 
   if (index < list.length) {
@@ -61,8 +86,8 @@ function generateProductInfo(category, index) {
 
   const num = index + 1;
   return {
-    title: `${prefix} — Edition ${num}`,
-    desc: `A premium handcrafted ${category.toLowerCase()} item designed with extreme attention to detail and high-quality materials. Makes a perfect, long-lasting gift for someone special.`
+    title: `${prefix} — Pack ${num}`,
+    desc: `A premium handcrafted ${category.toLowerCase()} item designed with extreme attention to detail and high-quality materials. Makes a perfect gift for someone special.`
   };
 }
 
@@ -103,12 +128,12 @@ async function run() {
     seededUsers.push(user);
   }
 
-  // --- Read Images Dynamically ---
-  const publicPath = path.join(__dirname, "../../client/public");
+  const publicPath = path.join(__dirname, "../../frontend from emergent/public");
   const categoriesList = [
     { folder: "toys", category: "Toys" },
     { folder: "jewelley", category: "Jewelry" },
-    { folder: "flowers", category: "Flowers" }
+    { folder: "flowers", category: "Flowers" },
+    { folder: "sweets", category: "Chocolates" }
   ];
 
   const productsToInsert = [];
@@ -121,11 +146,22 @@ async function run() {
       continue;
     }
 
-    const files = fs.readdirSync(dirPath).filter(file => /\.(jpe?g|png)$/i.test(file));
+    let files = fs.readdirSync(dirPath).filter(file => /\.(jpe?g|png|webp)$/i.test(file));
+    if (cat.folder === "sweets") {
+      const topOrder = ["IMG_4057.JPG.jpeg", "IMG_4062.JPG.jpeg", "IMG_4055.JPG.jpeg", "IMG_4054.JPG.jpeg"];
+      files.sort((a, b) => {
+        const ia = topOrder.indexOf(a);
+        const ib = topOrder.indexOf(b);
+        if (ia !== -1 && ib !== -1) return ia - ib;
+        if (ia !== -1) return -1;
+        if (ib !== -1) return 1;
+        return a.localeCompare(b);
+      });
+    }
     console.log(`Found ${files.length} images in ${cat.folder}`);
 
     files.forEach((file, index) => {
-      const info = generateProductInfo(cat.category, index);
+      const info = generateProductInfo(cat.category, index, file);
       const relativeUrl = `/${cat.folder}/${file}`;
       const slug = info.title
         .toLowerCase()

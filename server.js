@@ -2,13 +2,61 @@ const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const mongoose = require("mongoose");
+const helmet = require("helmet");
 require("dotenv").config();
+
+// Enforce that all critical integration and authentication keys are set.
+const checkEnvVars = () => {
+  const isProd = process.env.NODE_ENV === "production";
+  const criticalVars = [
+    "MONGODB_URI",
+    "JWT_SECRET",
+    "CLOUDINARY_CLOUD_NAME",
+    "CLOUDINARY_API_KEY",
+    "CLOUDINARY_API_SECRET",
+    "GOOGLE_CLIENT_ID",
+    "GOOGLE_CLIENT_SECRET",
+    "RAZORPAY_KEY_ID",
+    "RAZORPAY_KEY_SECRET",
+  ];
+
+  const missing = criticalVars.filter((key) => !process.env[key]);
+  if (missing.length > 0) {
+    const errMsg = `Critical environment variables missing: ${missing.join(", ")}`;
+    if (isProd) {
+      console.error(`[FATAL] ${errMsg}. Application cannot start in production.`);
+      process.exit(1);
+    } else {
+      console.warn(`[WARNING] ${errMsg}. Some features may not work correctly.`);
+    }
+  }
+};
+checkEnvVars();
+
 const passport = require("./src/config/passport");
 const requireDatabase = require("./src/middleware/requireDatabase");
 
 const connectDB = require("./config/db");
 
 const app = express();
+
+// Apply production security headers (XSS, Clickjacking, nosniff, HSTS)
+app.use(
+  helmet({
+    frameguard: {
+      action: "deny",
+    },
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "res.cloudinary.com"],
+      },
+    },
+  })
+);
+
 const PORT = process.env.PORT || 5001;
 const getAllowedOrigins = () => new Set([process.env.CLIENT_URL].filter(Boolean));
 const isLocalFrontendOrigin = (origin) =>
@@ -92,22 +140,29 @@ app.get("/api/categories", (req, res) => {
       name: "Toys",
       slug: "toys",
       image: "https://images.unsplash.com/photo-1559454403-b8fb88521f11?w=400",
-      count: 3,
+      count: 8,
       tint: "#F4F0FF"
     },
     {
       name: "Jewelry",
       slug: "jewelry",
       image: "https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=400",
-      count: 3,
+      count: 8,
       tint: "#FFF4F7"
     },
     {
       name: "Flowers",
       slug: "flowers",
       image: "https://images.unsplash.com/photo-1513201099705-a9746e1e201f?w=400",
-      count: 3,
+      count: 8,
       tint: "#EAF5FF"
+    },
+    {
+      name: "Chocolates",
+      slug: "sweets",
+      image: "/sweets/IMG_4057.JPG.jpeg",
+      count: 15,
+      tint: "#FFF0F3"
     }
   ]);
 });
@@ -156,6 +211,50 @@ app.get("/api/combos", (req, res) => {
       ],
       original_price: 4498,
       price: 3499
+    },
+    {
+      id: "combo4",
+      name: "Ultimate Couple Sweet Romance Hamper",
+      image: "/sweets/IMG_4057.JPG.jpeg",
+      ribbon: "Couple Favorite",
+      savings_pct: 22,
+      tagline: "CHOCOLATES + FLOWERS + JEWELRY + TOYS",
+      included: [
+        "Cadbury Silk Heart Blush Romantic Edition",
+        "Crimson Velvet Rose Bouquet",
+        "Twin Hearts Interlocking Pendant",
+        "Calming Lavender Plush Bear"
+      ],
+      original_price: 8999,
+      price: 6999
+    },
+    {
+      id: "combo5",
+      name: "Chocolate & Sparkle Couple Delight",
+      image: "/sweets/IMG_4062.JPG.jpeg",
+      ribbon: "Luxury Pair",
+      savings_pct: 20,
+      tagline: "CHOCOLATES + JEWELRY",
+      included: [
+        "Ferrero Rocher & Dark Chocolate Romance Box",
+        "Sun & Moon Celestial Necklace Set"
+      ],
+      original_price: 4999,
+      price: 3999
+    },
+    {
+      id: "combo6",
+      name: "Sweet Moments Plush & Choco Box",
+      image: "/sweets/IMG_4055.JPG.jpeg",
+      ribbon: "Sweet Romance",
+      savings_pct: 21,
+      tagline: "CHOCOLATES + TOYS",
+      included: [
+        "KitKat Luxury Gift Box Collection",
+        "Twin Magnetic Love Pandas"
+      ],
+      original_price: 3799,
+      price: 2999
     }
   ]);
 });

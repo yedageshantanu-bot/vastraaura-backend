@@ -62,7 +62,7 @@ In `client/wrangler.jsonc`, update the `vars` block:
 ```json
   "vars": {
     "NEXT_PUBLIC_API_URL": "https://api.yourdomain.com/api",
-    "NEXT_PUBLIC_RAZORPAY_KEY_ID": "rzp_live_SvX6cUiT0uMyax"
+    "NEXT_PUBLIC_RAZORPAY_KEY_ID": "your_razorpay_key_id"
   }
 ```
 

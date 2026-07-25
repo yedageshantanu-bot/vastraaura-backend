@@ -1,5 +1,5 @@
 const jwt = require("jsonwebtoken");
-const { AUTH_AUDIENCE, AUTH_ISSUER, JWT_COOKIE_NAME, getJwtSecret } = require("../utils/auth");
+const { AUTH_AUDIENCE, AUTH_ISSUER, JWT_COOKIE_NAME, getJwtSecret, isTokenBlacklisted } = require("../utils/auth");
 
 const getToken = (req) => {
   const headerToken = req.headers.authorization?.replace("Bearer ", "");
@@ -13,6 +13,10 @@ const requireAuth = (req, res, next) => {
 
   if (!token) {
     return res.status(401).json({ error: "Authentication required" });
+  }
+
+  if (isTokenBlacklisted(token)) {
+    return res.status(401).json({ error: "Invalid or expired session" });
   }
 
   try {

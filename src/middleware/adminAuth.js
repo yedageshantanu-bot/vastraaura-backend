@@ -2,29 +2,39 @@ const User = require("../../models/User");
 const { ADMIN_EMAIL, normalizeEmail, resolveRole } = require("../utils/auth");
 const { findUserById, isDbConnected } = require("../utils/localStore");
 
+const isAdminUser = (user) => {
+  if (!user) return false;
+  const email = normalizeEmail(user.email);
+  const allowlist = (process.env.ADMIN_GMAIL_ALLOWLIST || "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  return email === ADMIN_EMAIL || allowlist.includes(email);
+};
+
 module.exports = async (req, res, next) => {
   if (!isDbConnected()) {
     const user = findUserById(req.userId);
 
-    if (!user || normalizeEmail(user.email) !== ADMIN_EMAIL) {
+    if (!user || !isAdminUser(user)) {
       console.warn("[VastraAura admin] denied local admin API access", {
-        email: normalizeEmail(user?.email),
+        userId: user?._id || "unknown",
       });
       return res.status(403).json({ error: "Admin access required" });
     }
 
     req.auth.role = "admin";
     console.info("[VastraAura admin] local admin API access granted", {
-      email: normalizeEmail(user.email),
+      userId: user._id,
     });
     return next();
   }
 
   const user = await User.findById(req.userId).select("email role");
 
-  if (!user || normalizeEmail(user.email) !== ADMIN_EMAIL) {
+  if (!user || !isAdminUser(user)) {
     console.warn("[VastraAura admin] denied admin API access", {
-      email: normalizeEmail(user?.email),
+      userId: user?._id || "unknown",
     });
     return res.status(403).json({ error: "Admin access required" });
   }
@@ -37,7 +47,7 @@ module.exports = async (req, res, next) => {
 
   req.auth.role = "admin";
   console.info("[VastraAura admin] admin API access granted", {
-    email: normalizeEmail(user.email),
+    userId: user._id,
   });
   return next();
 };

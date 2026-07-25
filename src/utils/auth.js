@@ -1,6 +1,6 @@
 const jwt = require("jsonwebtoken");
 
-const ADMIN_EMAIL = String(process.env.ADMIN_EMAIL || "yedageshantanu@gmail.com").trim().toLowerCase();
+const ADMIN_EMAIL = String(process.env.ADMIN_EMAIL || "admin@vastraaura.com").trim().toLowerCase();
 const JWT_COOKIE_NAME = "vastraaura_token";
 const AUTH_ISSUER = "alaira-api";
 const AUTH_AUDIENCE = "alaira-web";
@@ -14,18 +14,28 @@ const getJwtSecret = () => {
   return secret;
 };
 const normalizeEmail = (value) => String(value || "").trim().toLowerCase();
-const resolveRole = (email) => (normalizeEmail(email) === ADMIN_EMAIL ? "admin" : "customer");
+const resolveRole = (email) => {
+  const normalized = normalizeEmail(email);
+  const allowlist = (process.env.ADMIN_GMAIL_ALLOWLIST || "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  return normalized === ADMIN_EMAIL || allowlist.includes(normalized) ? "admin" : "customer";
+};
 
-const buildCookieOptions = () => ({
-  httpOnly: true,
-  secure:
+const buildCookieOptions = () => {
+  const secure =
     process.env.NODE_ENV === "production" ||
     process.env.CLIENT_URL?.startsWith("https://") ||
-    process.env.CLIENT_URL?.includes("localhost"),
-  sameSite: "none",
-  path: "/",
-  maxAge: 1000 * 60 * 60 * 24 * 30,
-});
+    process.env.CLIENT_URL?.includes("localhost");
+  return {
+    httpOnly: true,
+    secure,
+    sameSite: secure ? "none" : "lax",
+    path: "/",
+    maxAge: 1000 * 60 * 60 * 24 * 30,
+  };
+};
 
 const signAuthToken = (user) =>
   jwt.sign(
@@ -150,6 +160,18 @@ const getPopupHtml = ({ success, message, token, nextPath = "/" }) => `<!doctype
   </body>
 </html>`;
 
+const tokenBlacklist = new Set();
+
+const blacklistToken = (token) => {
+  if (token) {
+    tokenBlacklist.add(token);
+  }
+};
+
+const isTokenBlacklisted = (token) => {
+  return tokenBlacklist.has(token);
+};
+
 module.exports = {
   ADMIN_EMAIL,
   JWT_COOKIE_NAME,
@@ -168,4 +190,6 @@ module.exports = {
   serializeUser,
   signAuthToken,
   verifyGoogleAuthState,
+  blacklistToken,
+  isTokenBlacklisted,
 };

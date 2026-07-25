@@ -17,6 +17,7 @@ const {
   serializeUser,
   signGoogleAuthState,
   verifyGoogleAuthState,
+  blacklistToken,
 } = require("../utils/auth");
 const {
   createEmailUser,
@@ -275,7 +276,7 @@ exports.forgotPassword = asyncHandler(async (req, res) => {
 
     const rawToken = crypto.randomBytes(32).toString("hex");
     user.resetPasswordTokenHash = toSha256(rawToken);
-    user.resetPasswordExpiresAt = new Date(Date.now() + 1000 * 60 * 20).toISOString();
+    user.resetPasswordExpiresAt = new Date(Date.now() + 1000 * 60 * 15).toISOString();
 
     return res.json({
       success: true,
@@ -294,7 +295,7 @@ exports.forgotPassword = asyncHandler(async (req, res) => {
 
   const rawToken = crypto.randomBytes(32).toString("hex");
   user.resetPasswordTokenHash = toSha256(rawToken);
-  user.resetPasswordExpiresAt = new Date(Date.now() + 1000 * 60 * 20);
+  user.resetPasswordExpiresAt = new Date(Date.now() + 1000 * 60 * 15);
   await user.save();
 
   return res.json({
@@ -373,6 +374,11 @@ exports.resetPassword = asyncHandler(async (req, res) => {
 });
 
 exports.logout = asyncHandler(async (req, res) => {
+  const { getToken } = require("../middleware/auth");
+  const token = getToken(req);
+  if (token) {
+    blacklistToken(token);
+  }
   clearAuthCookie(res);
   return res.json({ success: true, message: "Signed out" });
 });
@@ -770,6 +776,80 @@ exports.authenticateFirebaseUser = asyncHandler(async (req, res) => {
     console.error("[VastraAura Backend] Firebase authentication failed:", error);
     return res.status(401).json({ error: "Invalid Firebase authentication token" });
   }
+});
+
+exports.deleteAccount = asyncHandler(async (req, res) => {
+  const userId = req.userId;
+
+  if (!isDbConnected()) {
+    const store = require("../data/store");
+    const user = store.users.find((u) => String(u._id) === String(userId));
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const email = user.email;
+    // Remove user
+    const userIndex = store.users.findIndex((u) => String(u._id) === String(userId));
+    if (userIndex !== -1) {
+      store.users.splice(userIndex, 1);
+    }
+
+    // Anonymize local orders
+    store.orders.forEach((order) => {
+      if (String(order.userId) === String(userId) || order.userEmail === email) {
+        order.userId = null;
+        order.userEmail = "[REDACTED]";
+        order.customer = "[REDACTED]";
+        order.phone = "[REDACTED]";
+        if (order.shippingAddress) {
+          order.shippingAddress = {
+            fullName: "[REDACTED]",
+            phone: "[REDACTED]",
+            address: "[REDACTED]",
+            city: "[REDACTED]",
+            state: "[REDACTED]",
+            pincode: "[REDACTED]",
+          };
+        }
+      }
+    });
+
+    clearAuthCookie(res);
+    return res.json({ success: true, message: "Account deleted and data anonymized" });
+  }
+
+  const user = await User.findById(userId);
+  if (!user) {
+    return res.status(404).json({ error: "User not found" });
+  }
+
+  // Delete user document
+  await User.findByIdAndDelete(userId);
+
+  // Anonymize user's orders
+  await Order.updateMany(
+    { userId: userId },
+    {
+      $set: {
+        userId: null,
+        shippingAddress: {
+          fullName: "[REDACTED]",
+          phone: "[REDACTED]",
+          address: "[REDACTED]",
+          city: "[REDACTED]",
+          state: "[REDACTED]",
+          pincode: "[REDACTED]",
+        },
+        customer: "[REDACTED]",
+        phone: "[REDACTED]",
+        userEmail: "[REDACTED]",
+      },
+    }
+  );
+
+  clearAuthCookie(res);
+  return res.json({ success: true, message: "Account deleted and data anonymized" });
 });
 
 exports.requireAuth = requireAuth;

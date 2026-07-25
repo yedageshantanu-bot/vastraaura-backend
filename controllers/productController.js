@@ -365,13 +365,38 @@ exports.getProducts = asyncHandler(async (req, res) => {
 	}
 
 	if (req.query.category) {
-		filter.category = { $regex: new RegExp("^" + req.query.category + "$", "i") };
+		const rawCat = req.query.category.toLowerCase();
+		let pattern = req.query.category;
+		if (["sweets", "chocolates", "chocolate"].includes(rawCat)) {
+			pattern = "(Chocolates|sweets|chocolate|Chocolates & Sweets)";
+		} else if (["toys", "cute plushies", "plushies"].includes(rawCat)) {
+			pattern = "(Toys|Cute Plushies|toys)";
+		} else if (["jewelry", "fine jewelry"].includes(rawCat)) {
+			pattern = "(Jewelry|Fine Jewelry|jewelry)";
+		} else if (["flowers", "romantic combos"].includes(rawCat)) {
+			pattern = "(Flowers|Romantic Combos|flowers)";
+		}
+		filter.category = { $regex: new RegExp("^" + pattern + "$", "i") };
 	}
 
 	if (mongoose.connection.readyState !== 1) {
-		const products = store.products.filter((product) =>
-			Object.entries(filter).every(([key, value]) => product[key] === value),
-		);
+		const rawCat = (req.query.category || "").toLowerCase();
+		const products = store.products.filter((product) => {
+			const pCat = (product.category || "").toLowerCase();
+			if (["sweets", "chocolates", "chocolate"].includes(rawCat)) {
+				return ["sweets", "chocolates", "chocolate", "chocolates & sweets"].includes(pCat);
+			}
+			if (["toys", "cute plushies"].includes(rawCat)) {
+				return ["toys", "cute plushies"].includes(pCat);
+			}
+			if (["jewelry", "fine jewelry"].includes(rawCat)) {
+				return ["jewelry", "fine jewelry"].includes(pCat);
+			}
+			if (["flowers"].includes(rawCat)) {
+				return ["flowers"].includes(pCat);
+			}
+			return pCat === rawCat;
+		});
 
 		return res.json({ success: true, count: products.length, products });
 	}
@@ -782,11 +807,16 @@ exports.addProductReview = asyncHandler(async (req, res) => {
 		return res.status(404).json({ success: false, message: "Product not found" });
 	}
 
+	// Strip HTML tags to prevent XSS injections
+	const sanitizedComment = String(comment || "")
+		.replace(/<[^>]*>/g, "")
+		.trim();
+
 	// Add new review to the reviews array
 	const newReview = {
 		user: req.userId,
 		rating: Number(rating),
-		comment: comment || "",
+		comment: sanitizedComment,
 	};
 
 	product.reviews = product.reviews || [];
