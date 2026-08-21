@@ -369,6 +369,8 @@ exports.getProducts = asyncHandler(async (req, res) => {
 		let pattern = req.query.category;
 		if (["sweets", "chocolates", "chocolate"].includes(rawCat)) {
 			pattern = "(Chocolates|sweets|chocolate|Chocolates & Sweets)";
+		} else if (["healthy sweets", "healthy-sweets", "makhana"].includes(rawCat)) {
+			pattern = "(Healthy Sweets|healthy-sweets|makhana|Healthy Sweets & Snacks)";
 		} else if (["toys", "cute plushies", "plushies"].includes(rawCat)) {
 			pattern = "(Toys|Cute Plushies|toys)";
 		} else if (["jewelry", "fine jewelry"].includes(rawCat)) {
@@ -382,9 +384,13 @@ exports.getProducts = asyncHandler(async (req, res) => {
 	if (mongoose.connection.readyState !== 1) {
 		const rawCat = (req.query.category || "").toLowerCase();
 		const products = store.products.filter((product) => {
+			if (!rawCat) return true;
 			const pCat = (product.category || "").toLowerCase();
 			if (["sweets", "chocolates", "chocolate"].includes(rawCat)) {
 				return ["sweets", "chocolates", "chocolate", "chocolates & sweets"].includes(pCat);
+			}
+			if (["healthy sweets", "healthy-sweets", "makhana"].includes(rawCat)) {
+				return ["healthy sweets", "healthy-sweets", "makhana", "healthy sweets & snacks"].includes(pCat);
 			}
 			if (["toys", "cute plushies"].includes(rawCat)) {
 				return ["toys", "cute plushies"].includes(pCat);
@@ -398,13 +404,41 @@ exports.getProducts = asyncHandler(async (req, res) => {
 			return pCat === rawCat;
 		});
 
-		return res.json({ success: true, count: products.length, products });
+		const seenStoreTitles = new Set();
+		const seenStoreImages = new Set();
+		const deduplicatedStoreProducts = [];
+		for (const p of products) {
+			const titleKey = (p.title || "").trim().toLowerCase();
+			const imgUrl = (p.mainImage?.url || (Array.isArray(p.images) ? (typeof p.images[0] === 'string' ? p.images[0] : p.images[0]?.url) : '') || '').trim().toLowerCase();
+			if (!titleKey || seenStoreTitles.has(titleKey)) continue;
+			if (imgUrl && seenStoreImages.has(imgUrl)) continue;
+
+			seenStoreTitles.add(titleKey);
+			if (imgUrl) seenStoreImages.add(imgUrl);
+			deduplicatedStoreProducts.push(p);
+		}
+
+		return res.json({ success: true, count: deduplicatedStoreProducts.length, products: deduplicatedStoreProducts });
 	}
 
-	const products = await Product.find(filter)
+	const rawProducts = await Product.find(filter)
 		.sort({ displayOrder: 1, createdAt: -1 })
 		.populate("createdBy", "name email role")
 		.lean();
+
+	const seenTitles = new Set();
+	const seenImages = new Set();
+	const products = [];
+	for (const p of rawProducts) {
+		const titleKey = (p.title || "").trim().toLowerCase();
+		const imgUrl = (p.mainImage?.url || (Array.isArray(p.images) ? (typeof p.images[0] === 'string' ? p.images[0] : p.images[0]?.url) : '') || '').trim().toLowerCase();
+		if (!titleKey || seenTitles.has(titleKey)) continue;
+		if (imgUrl && seenImages.has(imgUrl)) continue;
+
+		seenTitles.add(titleKey);
+		if (imgUrl) seenImages.add(imgUrl);
+		products.push(p);
+	}
 
 	res.json({ success: true, count: products.length, products });
 });

@@ -119,7 +119,12 @@ const sanitizeInternalPath = (value, fallback = "/") => {
     return safeFallback;
   }
 
-  if (rawValue.startsWith("//")) {
+  if (
+    rawValue.startsWith("//") ||
+    rawValue.startsWith("/\\") ||
+    rawValue.includes("\\") ||
+    /^[a-z0-9+-.]+:/i.test(rawValue)
+  ) {
     return safeFallback;
   }
 
@@ -130,7 +135,7 @@ const sanitizeInternalPath = (value, fallback = "/") => {
     }
 
     const internalPath = `${parsed.pathname}${parsed.search}${parsed.hash}`;
-    return internalPath.startsWith("/") ? internalPath : safeFallback;
+    return internalPath.startsWith("/") && !internalPath.startsWith("//") ? internalPath : safeFallback;
   } catch {
     return safeFallback;
   }

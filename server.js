@@ -38,6 +38,9 @@ const requireDatabase = require("./src/middleware/requireDatabase");
 
 const connectDB = require("./config/db");
 
+const rateLimit = require("express-rate-limit");
+const { mongoSanitizeMiddleware, xssSanitizeMiddleware } = require("./src/middleware/sanitizeInput");
+
 const app = express();
 
 // Apply production security headers (XSS, Clickjacking, nosniff, HSTS)
@@ -58,16 +61,23 @@ app.use(
 );
 
 const PORT = process.env.PORT || 5001;
-const getAllowedOrigins = () => new Set([process.env.CLIENT_URL].filter(Boolean));
+
+const getAllowedOrigins = () => {
+  const configured = [process.env.CLIENT_URL].filter(Boolean);
+  const extra = (process.env.ADDITIONAL_ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  return new Set([...configured, ...extra]);
+};
+
 const isLocalFrontendOrigin = (origin) =>
   /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?$/.test(origin || "");
-const isCloudflareWorkersDevOrigin = (origin) =>
-  /\.workers\.dev$/.test(origin || "") || /\.loca\.lt$/.test(origin || "") || /\.pages\.dev(:\d+)?$/.test(origin || "");
+
 const isAllowedOrigin = (origin) =>
   !origin ||
   getAllowedOrigins().has(origin) ||
-  isLocalFrontendOrigin(origin) ||
-  isCloudflareWorkersDevOrigin(origin);
+  isLocalFrontendOrigin(origin);
 
 const getDatabaseStatus = () => {
   switch (mongoose.connection.readyState) {
@@ -111,6 +121,21 @@ app.use((req, res, next) => {
 app.use("/api/payment/webhook", express.raw({ type: "application/json" }));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
+
+// Apply NoSQL and XSS input sanitization
+app.use(mongoSanitizeMiddleware);
+app.use(xssSanitizeMiddleware);
+
+// Global API Rate Limiter
+const globalApiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests, please try again later." },
+});
+app.use("/api", globalApiLimiter);
+
 app.use(passport.initialize());
 
 app.get("/api/health", (req, res) => {
@@ -133,6 +158,7 @@ app.use("/api/users", require("./routes/userRoutes"));
 app.use("/api/coupons", require("./routes/couponRoutes"));
 app.use("/api/admin", require("./routes/adminRoutes"));
 app.use("/api/payment", require("./routes/paymentRoutes"));
+app.use("/api/combos", require("./routes/comboRoutes"));
 
 app.get("/api/categories", (req, res) => {
   res.json([
@@ -142,13 +168,6 @@ app.get("/api/categories", (req, res) => {
       image: "https://images.unsplash.com/photo-1559454403-b8fb88521f11?w=400",
       count: 8,
       tint: "#F4F0FF"
-    },
-    {
-      name: "Jewelry",
-      slug: "jewelry",
-      image: "https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=400",
-      count: 8,
-      tint: "#FFF4F7"
     },
     {
       name: "Flowers",
@@ -163,101 +182,18 @@ app.get("/api/categories", (req, res) => {
       image: "/sweets/IMG_4057.JPG.jpeg",
       count: 15,
       tint: "#FFF0F3"
+    },
+    {
+      name: "Healthy Sweets",
+      slug: "healthy-sweets",
+      image: "/kind of sweets but not choclate/image13.jpeg",
+      count: 29,
+      tint: "#FDF4E3"
     }
   ]);
 });
 
-app.get("/api/combos", (req, res) => {
-  res.json([
-    {
-      id: "combo1",
-      name: "Premium Trio Love Gift Hamper",
-      image: "/flowers/IMG_3520.JPG.jpeg",
-      ribbon: "Best Seller",
-      savings_pct: 20,
-      tagline: "FLOWERS + JEWELRY + TOYS",
-      included: [
-        "Crimson Velvet Rose Bouquet",
-        "Twin Hearts Interlocking Pendant",
-        "Calming Lavender Plush Bear"
-      ],
-      original_price: 9997,
-      price: 7999
-    },
-    {
-      id: "combo2",
-      name: "Sparkling Celestial Combo",
-      image: "/jewelley/IMG_3617.JPG.jpeg",
-      ribbon: "Highly Rated",
-      savings_pct: 23,
-      tagline: "JEWELRY + TOYS",
-      included: [
-        "Sun & Moon Celestial Necklace",
-        "Twin Magnetic Love Pandas"
-      ],
-      original_price: 6498,
-      price: 4999
-    },
-    {
-      id: "combo3",
-      name: "Sweet Comfort Flowers & Plush",
-      image: "/toys/IMG_3674.JPG.jpeg",
-      ribbon: "Cozy Choice",
-      savings_pct: 22,
-      tagline: "FLOWERS + TOYS",
-      included: [
-        "Grand Celebration Flower Basket",
-        "Blush Pink Fluffy Pillow Bear"
-      ],
-      original_price: 4498,
-      price: 3499
-    },
-    {
-      id: "combo4",
-      name: "Ultimate Couple Sweet Romance Hamper",
-      image: "/sweets/IMG_4057.JPG.jpeg",
-      ribbon: "Couple Favorite",
-      savings_pct: 22,
-      tagline: "CHOCOLATES + FLOWERS + JEWELRY + TOYS",
-      included: [
-        "Cadbury Silk Heart Blush Romantic Edition",
-        "Crimson Velvet Rose Bouquet",
-        "Twin Hearts Interlocking Pendant",
-        "Calming Lavender Plush Bear"
-      ],
-      original_price: 8999,
-      price: 6999
-    },
-    {
-      id: "combo5",
-      name: "Chocolate & Sparkle Couple Delight",
-      image: "/sweets/IMG_4062.JPG.jpeg",
-      ribbon: "Luxury Pair",
-      savings_pct: 20,
-      tagline: "CHOCOLATES + JEWELRY",
-      included: [
-        "Ferrero Rocher & Dark Chocolate Romance Box",
-        "Sun & Moon Celestial Necklace Set"
-      ],
-      original_price: 4999,
-      price: 3999
-    },
-    {
-      id: "combo6",
-      name: "Sweet Moments Plush & Choco Box",
-      image: "/sweets/IMG_4055.JPG.jpeg",
-      ribbon: "Sweet Romance",
-      savings_pct: 21,
-      tagline: "CHOCOLATES + TOYS",
-      included: [
-        "KitKat Luxury Gift Box Collection",
-        "Twin Magnetic Love Pandas"
-      ],
-      original_price: 3799,
-      price: 2999
-    }
-  ]);
-});
+
 
 app.use((req, res) => {
   res.status(404).json({ error: "Route not found" });
