@@ -7,13 +7,14 @@ const {
   deleteCombo,
 } = require("../controllers/comboController");
 
-const { protect, authorize } = require("../middleware/auth");
+const requireAuth = require("../middleware/auth");
+const adminAuth = require("../middleware/adminAuth");
 
-router.route("/").get(getCombos).post(protect, authorize("admin"), createCombo);
+router.route("/").get(getCombos).post(requireAuth, adminAuth, createCombo);
 
 router
   .route("/:id")
-  .put(protect, authorize("admin"), updateCombo)
-  .delete(protect, authorize("admin"), deleteCombo);
+  .put(requireAuth, adminAuth, updateCombo)
+  .delete(requireAuth, adminAuth, deleteCombo);
 
 module.exports = router;
