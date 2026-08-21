@@ -13,6 +13,8 @@ exports.getCombos = asyncHandler(async (req, res) => {
     _id: c._id,
     name: c.name,
     image: c.image,
+    galleryImages: c.galleryImages,
+    videos: c.videos,
     ribbon: c.ribbon,
     savings_pct: c.savings_pct,
     tagline: c.tagline,
