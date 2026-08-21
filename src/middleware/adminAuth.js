@@ -42,8 +42,12 @@ module.exports = async (req, res, next) => {
 
   const role = resolveRole(user.email);
   if (user.role !== role) {
-    user.role = role;
-    await user.save();
+    try {
+      await User.updateOne({ _id: user._id }, { $set: { role: role } });
+      user.role = role;
+    } catch (err) {
+      console.error("[VastraAura admin] Failed to upgrade user role:", err);
+    }
   }
 
   req.auth.role = "admin";
