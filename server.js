@@ -129,7 +129,7 @@ app.use(xssSanitizeMiddleware);
 // Global API Rate Limiter
 const globalApiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 200,
+  max: 5000,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many requests, please try again later." },
@@ -159,6 +159,7 @@ app.use("/api/coupons", require("./routes/couponRoutes"));
 app.use("/api/admin", require("./routes/adminRoutes"));
 app.use("/api/payment", require("./routes/paymentRoutes"));
 app.use("/api/combos", require("./routes/comboRoutes"));
+app.use("/api/enquiries", require("./routes/enquiryRoutes"));
 
 app.get("/api/categories", (req, res) => {
   res.json([
@@ -177,18 +178,11 @@ app.get("/api/categories", (req, res) => {
       tint: "#EAF5FF"
     },
     {
-      name: "Chocolates",
+      name: "Sweets",
       slug: "sweets",
       image: "/sweets/IMG_4057.JPG.jpeg",
-      count: 15,
+      count: 44,
       tint: "#FFF0F3"
-    },
-    {
-      name: "Healthy Sweets",
-      slug: "healthy-sweets",
-      image: "/kind of sweets but not choclate/image13.jpeg",
-      count: 29,
-      tint: "#FDF4E3"
     }
   ]);
 });
