@@ -36,6 +36,25 @@ const requireAuth = (req, res, next) => {
   }
 };
 
+const optionalAuth = (req, res, next) => {
+  const token = getToken(req);
+  if (!token || isTokenBlacklisted(token)) {
+    return next();
+  }
+  try {
+    const decoded = jwt.verify(token, getJwtSecret(), {
+      audience: AUTH_AUDIENCE,
+      issuer: AUTH_ISSUER,
+    });
+    req.auth = decoded;
+    req.userId = decoded.sub;
+  } catch (error) {
+    // Ignore invalid optional tokens
+  }
+  return next();
+};
+
 module.exports = requireAuth;
 module.exports.requireAuth = requireAuth;
+module.exports.optionalAuth = optionalAuth;
 module.exports.getToken = getToken;
