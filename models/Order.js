@@ -51,6 +51,11 @@ const orderSchema = new mongoose.Schema(
       enum: ["Pending", "Packed", "Shipped", "Delivered", "Cancelled"],
       default: "Pending",
     },
+    letterStyle: { type: String, default: "" },
+    envelopeFrontText: { type: String, default: "" },
+    noteMessage: { type: String, default: "" },
+    giftNote: { type: String, default: "" },
+    giftWrap: { type: Boolean, default: true },
   },
   { timestamps: true },
 );

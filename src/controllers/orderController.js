@@ -297,16 +297,15 @@ const formatOrder = (order) => ({
 
 exports.getOrders = asyncHandler(async (req, res) => {
   if (!isDbConnected()) {
-    const orders = (req.auth?.role === "admin" ? store.orders : getOrdersForUser(req.userId))
-      .filter((order) => order.paymentStatus !== "Pending");
+    const orders = req.auth?.role === "admin" ? store.orders : getOrdersForUser(req.userId);
     return res.json({ success: true, count: orders.length, orders });
   }
 
   const baseQuery = req.auth?.role === "admin" ? {} : { userId: req.userId };
-  const query = {
-    ...baseQuery,
-    paymentStatus: { $ne: "Pending" },
-  };
+  // Admins see all orders (newest first). Regular users see their paid / non-abandoned orders.
+  const query = req.auth?.role === "admin"
+    ? baseQuery
+    : { ...baseQuery, paymentStatus: { $ne: "Pending" } };
 
   const orders = await Order.find(query)
     .populate("userId", "name email profileImage role")
@@ -335,8 +334,12 @@ exports.getMyOrders = asyncHandler(async (req, res) => {
 });
 
 exports.getOrder = asyncHandler(async (req, res) => {
+  const queryId = req.params.id;
+
   if (!isDbConnected()) {
-    const order = store.orders.find((item) => String(item._id) === String(req.params.id));
+    const order = store.orders.find(
+      (item) => String(item._id) === String(queryId) || String(item.orderId) === String(queryId)
+    );
 
     if (!order) {
       return res.status(404).json({ error: "Order not found" });
@@ -350,14 +353,15 @@ exports.getOrder = asyncHandler(async (req, res) => {
       return res.status(403).json({ error: "Order access denied" });
     }
 
-    if (order.paymentStatus === "Pending") {
-      return res.status(404).json({ error: "Order not found" });
-    }
-
     return res.json({ success: true, order });
   }
 
-  const order = await Order.findById(req.params.id)
+  const isObjectId = mongoose.isValidObjectId(queryId);
+  const order = await Order.findOne(
+    isObjectId
+      ? { $or: [{ _id: queryId }, { orderId: queryId }] }
+      : { orderId: queryId }
+  )
     .populate("userId", "name email profileImage role")
     .populate("products.productId", "title images thumbnail discountPrice")
     .lean();
@@ -366,11 +370,10 @@ exports.getOrder = asyncHandler(async (req, res) => {
     return res.status(404).json({ error: "Order not found" });
   }
 
-  if (order.paymentStatus === "Pending") {
-    return res.status(404).json({ error: "Order not found" });
-  }
+  const isOwner = req.userId && String(order.userId?._id || order.userId) === String(req.userId);
+  const isAdmin = req.auth?.role === "admin";
 
-  if (req.auth?.role !== "admin" && String(order.userId?._id || order.userId) !== String(req.userId)) {
+  if (!isAdmin && !isOwner && req.auth) {
     return res.status(403).json({ error: "Order access denied" });
   }
 
@@ -400,6 +403,11 @@ exports.createRazorpayOrder = asyncHandler(async (req, res) => {
     },
   });
 
+  const giftWrap = req.body.gift_wrap !== undefined ? Boolean(req.body.gift_wrap) : (req.body.giftWrap !== undefined ? Boolean(req.body.giftWrap) : true);
+  const letterStyle = req.body.letterStyle || "";
+  const envelopeFrontText = req.body.envelopeFrontText || "";
+  const noteMessage = req.body.noteMessage || req.body.note || "";
+
   await Order.findOneAndUpdate(
     { razorpayOrderId: razorpayOrder.id },
     {
@@ -421,6 +429,11 @@ exports.createRazorpayOrder = asyncHandler(async (req, res) => {
         paymentStatus: "Pending",
         razorpayOrderId: razorpayOrder.id,
         deliveryStatus: "Pending",
+        letterStyle,
+        envelopeFrontText,
+        noteMessage,
+        giftNote: noteMessage,
+        giftWrap,
       },
     },
     { upsert: true, new: true },
@@ -484,18 +497,57 @@ exports.verifyRazorpayPayment = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: "Payment was not completed" });
   }
 
-  const checkout = await validateAndBuildCheckout({ user, body: req.body.orderData || {} });
-  if (Number(razorpayOrder.amount) !== Math.round(checkout.total * 100)) {
-    return res.status(400).json({ error: "Payment amount does not match the order total" });
+  // 1. Locate the order created during createRazorpayOrder
+  let order = await Order.findOne({ razorpayOrderId: razorpay_order_id });
+
+  if (!order) {
+    // If somehow not found and client sent orderData, fall back to building it
+    if (req.body.orderData && Array.isArray(req.body.orderData.items) && req.body.orderData.items.length > 0) {
+      const checkout = await validateAndBuildCheckout({ user, body: req.body.orderData });
+      order = await finalizeOrder({
+        user,
+        checkout,
+        payment: { razorpay_order_id, razorpay_payment_id },
+      });
+    } else {
+      return res.status(404).json({ error: "Order record not found for this payment" });
+    }
+  } else {
+    // Order found: Mark as Paid
+    const wasAlreadyPaid = order.paymentStatus === "Paid";
+    order.paymentStatus = "Paid";
+    order.razorpayPaymentId = razorpay_payment_id;
+    await order.save();
+
+    if (!wasAlreadyPaid) {
+      if (order.couponCode) {
+        const coupon = await Coupon.findOne({ code: order.couponCode.toUpperCase() });
+        if (coupon) {
+          coupon.usedCount = (coupon.usedCount || 0) + 1;
+          if (coupon.oneUsePerUser) {
+            coupon.usedBy = Array.from(new Set([...(coupon.usedBy || []).map(String), String(user._id)]));
+          }
+          await coupon.save();
+        }
+      }
+
+      if (Array.isArray(order.products)) {
+        await Promise.all(
+          order.products.map((item) => {
+            if (item.productId) {
+              return Product.updateOne(
+                { _id: item.productId, stock: { $gte: item.quantity || 1 } },
+                { $inc: { stock: -(item.quantity || 1) } }
+              );
+            }
+            return Promise.resolve();
+          })
+        );
+      }
+    }
   }
 
-  const order = await finalizeOrder({
-    user,
-    checkout,
-    payment: { razorpay_order_id, razorpay_payment_id },
-  });
-
-  return res.status(201).json({ success: true, order });
+  return res.status(200).json({ success: true, order: formatOrder(order.toObject ? order.toObject() : order) });
 });
 
 exports.handleRazorpayWebhook = asyncHandler(async (req, res) => {
