@@ -2,6 +2,7 @@ const Order = require("../../models/Order");
 const User = require("../../models/User");
 const Coupon = require("../../models/Coupon");
 const Product = require("../../models/Product");
+const Setting = require("../models/Setting");
 const asyncHandler = require("../../middleware/asyncHandler");
 const Razorpay = require("razorpay");
 const crypto = require("crypto");
@@ -175,13 +176,29 @@ const validateAndBuildCheckout = async ({ user, body }) => {
   };
   const isTestOrder = orderProducts.length > 0 && orderProducts.every(isTestItem);
 
-  const shipping =
-    payableBeforeShipping >= 999 ||
+  let freeThreshold = 999;
+  let standardFee = 99;
+  try {
+    const settingDoc = await Setting.findOne({ key: "global_store_settings" }).lean();
+    if (settingDoc) {
+      if (settingDoc.freeShippingThreshold !== undefined && settingDoc.freeShippingThreshold !== null) {
+        freeThreshold = Math.max(0, Number(settingDoc.freeShippingThreshold));
+      }
+      if (settingDoc.standardShippingFee !== undefined && settingDoc.standardShippingFee !== null) {
+        standardFee = Math.max(0, Number(settingDoc.standardShippingFee));
+      }
+    }
+  } catch (err) {
+    console.warn("[Shipping Settings Lookup]", err.message);
+  }
+
+  const isFreeShipping =
+    payableBeforeShipping >= freeThreshold ||
     payableBeforeShipping === 0 ||
     payableBeforeShipping <= 1 ||
-    isTestOrder
-      ? 0
-      : 99;
+    isTestOrder;
+
+  const shipping = isFreeShipping ? 0 : standardFee;
   const total = payableBeforeShipping + shipping;
 
   return {
