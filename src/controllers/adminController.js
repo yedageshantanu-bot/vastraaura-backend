@@ -10,16 +10,17 @@ exports.getStats = asyncHandler(async (req, res) => {
   const today = new Date().toDateString();
 
   if (!isDbConnected()) {
-    const revenue = store.orders.reduce((sum, order) => sum + Number(order.total || 0), 0);
+    const paidOrders = store.orders.filter((order) => order.paymentStatus === "Paid");
+    const revenue = paidOrders.reduce((sum, order) => sum + Number(order.total || 0), 0);
 
     return res.json({
       success: true,
-      totalOrders: store.orders.length,
-      todayOrders: store.orders.filter(
+      totalOrders: paidOrders.length,
+      todayOrders: paidOrders.filter(
         (order) => new Date(order.createdAt || order.date).toDateString() === today,
       ).length,
-      pendingOrders: store.orders.filter((order) => order.deliveryStatus === "Pending").length,
-      deliveredOrders: store.orders.filter((order) => order.deliveryStatus === "Delivered").length,
+      pendingOrders: paidOrders.filter((order) => order.deliveryStatus === "Pending").length,
+      deliveredOrders: paidOrders.filter((order) => order.deliveryStatus === "Delivered").length,
       revenue,
       totalProducts: store.products.length,
       totalCustomers: store.users.length,
@@ -27,7 +28,7 @@ exports.getStats = asyncHandler(async (req, res) => {
     });
   }
 
-  const orders = await Order.find().lean();
+  const orders = await Order.find({ paymentStatus: "Paid" }).lean();
   const revenue = orders.reduce((sum, order) => sum + Number(order.total || 0), 0);
 
   const [totalProducts, totalCustomers, activeCoupons] = await Promise.all([

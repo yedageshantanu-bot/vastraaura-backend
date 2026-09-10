@@ -369,8 +369,8 @@ exports.getOrder = asyncHandler(async (req, res) => {
   const isObjectId = mongoose.isValidObjectId(queryId);
   const order = await Order.findOne(
     isObjectId
-      ? { $or: [{ _id: queryId }, { orderId: queryId }] }
-      : { orderId: queryId }
+      ? { $or: [{ _id: queryId }, { orderId: queryId }, { razorpayOrderId: queryId }] }
+      : { $or: [{ orderId: queryId }, { razorpayOrderId: queryId }] }
   )
     .populate("userId", "name email profileImage role")
     .populate("products.productId", "title images thumbnail discountPrice")
@@ -466,6 +466,49 @@ exports.createRazorpayOrder = asyncHandler(async (req, res) => {
   });
 });
 
+const markOrderPaidAndDeductStock = async (order, razorpayPaymentId, userId) => {
+  if (!order) return null;
+  const wasAlreadyPaid = order.paymentStatus === "Paid";
+  order.paymentStatus = "Paid";
+  if (razorpayPaymentId) {
+    order.razorpayPaymentId = razorpayPaymentId;
+  }
+  await order.save();
+
+  if (!wasAlreadyPaid) {
+    // 1. Update coupon usage
+    if (order.couponCode) {
+      const coupon = await Coupon.findOne({ code: order.couponCode.toUpperCase() });
+      if (coupon) {
+        coupon.usedCount = (coupon.usedCount || 0) + 1;
+        const targetUser = userId || order.userId;
+        if (coupon.oneUsePerUser && targetUser) {
+          coupon.usedBy = Array.from(new Set([...(coupon.usedBy || []).map(String), String(targetUser)]));
+        }
+        await coupon.save();
+      }
+    }
+
+    // 2. Decrement stock for all items
+    if (Array.isArray(order.products)) {
+      for (const item of order.products) {
+        const rawId = item.productId?._id || item.productId;
+        const qty = Math.max(1, Number(item.quantity || 1));
+        if (rawId && mongoose.isValidObjectId(rawId)) {
+          const product = await Product.findById(rawId);
+          if (product) {
+            product.stock = Math.max(0, (Number(product.stock) || 0) - qty);
+            await product.save();
+            console.log(`[Stock Deducted] ${product.title} reduced by ${qty}. New stock: ${product.stock}`);
+          }
+        }
+      }
+    }
+  }
+
+  return order;
+};
+
 exports.verifyRazorpayPayment = asyncHandler(async (req, res) => {
   if (!isDbConnected()) {
     return res.status(503).json({ error: "Database connection is required for live payments" });
@@ -523,38 +566,8 @@ exports.verifyRazorpayPayment = asyncHandler(async (req, res) => {
       return res.status(404).json({ error: "Order record not found for this payment" });
     }
   } else {
-    // Order found: Mark as Paid
-    const wasAlreadyPaid = order.paymentStatus === "Paid";
-    order.paymentStatus = "Paid";
-    order.razorpayPaymentId = razorpay_payment_id;
-    await order.save();
-
-    if (!wasAlreadyPaid) {
-      if (order.couponCode) {
-        const coupon = await Coupon.findOne({ code: order.couponCode.toUpperCase() });
-        if (coupon) {
-          coupon.usedCount = (coupon.usedCount || 0) + 1;
-          if (coupon.oneUsePerUser) {
-            coupon.usedBy = Array.from(new Set([...(coupon.usedBy || []).map(String), String(user._id)]));
-          }
-          await coupon.save();
-        }
-      }
-
-      if (Array.isArray(order.products)) {
-        await Promise.all(
-          order.products.map((item) => {
-            if (item.productId) {
-              return Product.updateOne(
-                { _id: item.productId, stock: { $gte: item.quantity || 1 } },
-                { $inc: { stock: -(item.quantity || 1) } }
-              );
-            }
-            return Promise.resolve();
-          })
-        );
-      }
-    }
+    // Order found: Mark as Paid and atomically deduct product stock
+    order = await markOrderPaidAndDeductStock(order, razorpay_payment_id, user._id);
   }
 
   return res.status(200).json({ success: true, order: formatOrder(order.toObject ? order.toObject() : order) });
@@ -587,14 +600,10 @@ exports.handleRazorpayWebhook = asyncHandler(async (req, res) => {
   const razorpayPaymentId = payment.id || refund.payment_id || "";
 
   if (["payment.captured", "payment.authorized"].includes(event.event)) {
-    await Order.findOneAndUpdate(
-      { razorpayOrderId },
-      {
-        paymentStatus: "Paid",
-        razorpayPaymentId,
-      },
-      { new: true },
-    );
+    const existingOrder = await Order.findOne({ razorpayOrderId });
+    if (existingOrder) {
+      await markOrderPaidAndDeductStock(existingOrder, razorpayPaymentId);
+    }
   }
 
   if (["payment.failed"].includes(event.event)) {

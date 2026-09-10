@@ -408,7 +408,7 @@ exports.getProfile = asyncHandler(async (req, res) => {
     return res.json({
       success: true,
       user: serializeUser(user),
-      orders: getOrdersForUser(user._id),
+      orders: getOrdersForUser(user._id).filter((order) => order.paymentStatus === "Paid"),
       addresses: ensureAddresses(user),
     });
   }
@@ -421,7 +421,7 @@ exports.getProfile = asyncHandler(async (req, res) => {
 
   await applyRoleGuard(user);
 
-  const orders = await Order.find({ userId: user._id })
+  const orders = await Order.find({ userId: user._id, paymentStatus: "Paid" })
     .sort({ createdAt: -1 })
     .populate("products.productId")
     .lean();
