@@ -293,12 +293,16 @@ const finalizeOrder = async ({ user, checkout, payment }) => {
 const formatOrder = (order) => ({
   ...order,
   userId: order.userId ? String(order.userId._id || order.userId) : undefined,
+  customer: order.customerInfo?.name || order.shippingAddress?.fullName || (typeof order.userId === "object" ? order.userId?.name : "") || "Customer",
+  phone: order.customerInfo?.phone || order.shippingAddress?.phone || "",
+  userEmail: order.customerInfo?.email || order.shippingAddress?.email || (typeof order.userId === "object" ? order.userId?.email : "") || "",
 });
 
 exports.getOrders = asyncHandler(async (req, res) => {
   if (!isDbConnected()) {
     const orders = (req.auth?.role === "admin" ? store.orders : getOrdersForUser(req.userId))
-      .filter((o) => o.paymentStatus !== "Pending");
+      .filter((o) => o.paymentStatus !== "Pending")
+      .map(formatOrder);
     return res.json({ success: true, count: orders.length, orders });
   }
 
@@ -315,12 +319,15 @@ exports.getOrders = asyncHandler(async (req, res) => {
     .sort({ createdAt: -1 })
     .lean();
 
-  return res.json({ success: true, count: orders.length, orders });
+  const formattedOrders = orders.map(formatOrder);
+  return res.json({ success: true, count: formattedOrders.length, orders: formattedOrders });
 });
 
 exports.getMyOrders = asyncHandler(async (req, res) => {
   if (!isDbConnected()) {
-    const orders = getOrdersForUser(req.userId).filter((order) => order.paymentStatus !== "Pending");
+    const orders = getOrdersForUser(req.userId)
+      .filter((order) => order.paymentStatus !== "Pending")
+      .map(formatOrder);
     return res.json({ success: true, count: orders.length, orders });
   }
 
@@ -332,7 +339,8 @@ exports.getMyOrders = asyncHandler(async (req, res) => {
     .sort({ createdAt: -1 })
     .lean();
 
-  return res.json({ success: true, count: orders.length, orders });
+  const formattedOrders = orders.map(formatOrder);
+  return res.json({ success: true, count: formattedOrders.length, orders: formattedOrders });
 });
 
 exports.getOrder = asyncHandler(async (req, res) => {
