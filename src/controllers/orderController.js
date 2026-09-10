@@ -297,15 +297,17 @@ const formatOrder = (order) => ({
 
 exports.getOrders = asyncHandler(async (req, res) => {
   if (!isDbConnected()) {
-    const orders = req.auth?.role === "admin" ? store.orders : getOrdersForUser(req.userId);
+    const orders = (req.auth?.role === "admin" ? store.orders : getOrdersForUser(req.userId))
+      .filter((o) => o.paymentStatus !== "Pending");
     return res.json({ success: true, count: orders.length, orders });
   }
 
   const baseQuery = req.auth?.role === "admin" ? {} : { userId: req.userId };
-  // Admins see all orders (newest first). Regular users see their paid / non-abandoned orders.
-  const query = req.auth?.role === "admin"
-    ? baseQuery
-    : { ...baseQuery, paymentStatus: { $ne: "Pending" } };
+  // Exclude unpaid / abandoned pending orders so admin and users only see confirmed paid orders
+  const query = {
+    ...baseQuery,
+    paymentStatus: { $ne: "Pending" },
+  };
 
   const orders = await Order.find(query)
     .populate("userId", "name email profileImage role")
