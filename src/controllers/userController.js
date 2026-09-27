@@ -146,9 +146,9 @@ exports.getMe = asyncHandler(async (req, res) => {
   }
 
   await applyRoleGuard(user);
-  sendAuthCookie(res, user);
+  const token = sendAuthCookie(res, user);
 
-  return res.json({ success: true, user: serializeUser(user) });
+  return res.json({ success: true, user: serializeUser(user), token });
 });
 
 exports.registerWithEmail = asyncHandler(async (req, res) => {
