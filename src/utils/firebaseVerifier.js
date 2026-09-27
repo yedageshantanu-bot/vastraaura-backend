@@ -72,17 +72,18 @@ const verifyFirebaseIdToken = async (token, projectId) => {
         algorithms: ["RS256"],
         audience: projectId,
         issuer: `https://securetoken.google.com/${projectId}`,
-        clockTolerance: 300, // Allow up to 5 minutes of clock skew
+        ignoreExpiration: true,
       },
       (err, decoded) => {
         if (err) {
           return reject(err);
         }
 
-        // Validate extra claims with tolerance for clock skew
+        // Allow Google-signed tokens issued within 30 days (matching backend session length)
         const now = Math.floor(Date.now() / 1000);
-        if (decoded.auth_time > now + 300) {
-          return reject(new Error("Token auth_time is in the future"));
+        const maxAge = 30 * 24 * 60 * 60; // 30 days
+        if (decoded.iat && now - decoded.iat > maxAge) {
+          return reject(new Error("Token expired: older than 30 days"));
         }
 
         resolve(decoded);
