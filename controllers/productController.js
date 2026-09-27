@@ -381,9 +381,21 @@ exports.getProducts = asyncHandler(async (req, res) => {
 		filter.category = { $regex: new RegExp("^" + pattern + "$", "i") };
 	}
 
+	const searchQuery = (req.query.q || req.query.search || "").trim();
+	if (searchQuery) {
+		const searchRegex = new RegExp(searchQuery, "i");
+		filter.$or = [
+			{ title: searchRegex },
+			{ description: searchRegex },
+			{ category: searchRegex },
+			{ subCategory: searchRegex },
+			{ sku: searchRegex },
+		];
+	}
+
 	if (mongoose.connection.readyState !== 1) {
 		const rawCat = (req.query.category || "").toLowerCase();
-		const products = store.products.filter((product) => {
+		let products = store.products.filter((product) => {
 			if (!rawCat) return true;
 			const pCat = (product.category || "").toLowerCase();
 			if (["sweets", "chocolates", "chocolate"].includes(rawCat)) {
@@ -404,21 +416,16 @@ exports.getProducts = asyncHandler(async (req, res) => {
 			return pCat === rawCat;
 		});
 
-		const seenStoreTitles = new Set();
-		const seenStoreImages = new Set();
-		const deduplicatedStoreProducts = [];
-		for (const p of products) {
-			const titleKey = (p.title || "").trim().toLowerCase();
-			const imgUrl = (p.mainImage?.url || (Array.isArray(p.images) ? (typeof p.images[0] === 'string' ? p.images[0] : p.images[0]?.url) : '') || '').trim().toLowerCase();
-			if (!titleKey || seenStoreTitles.has(titleKey)) continue;
-			if (imgUrl && seenStoreImages.has(imgUrl)) continue;
-
-			seenStoreTitles.add(titleKey);
-			if (imgUrl) seenStoreImages.add(imgUrl);
-			deduplicatedStoreProducts.push(p);
+		if (searchQuery) {
+			const qLower = searchQuery.toLowerCase();
+			products = products.filter((p) =>
+				(p.title || "").toLowerCase().includes(qLower) ||
+				(p.description || "").toLowerCase().includes(qLower) ||
+				(p.category || "").toLowerCase().includes(qLower)
+			);
 		}
 
-		return res.json({ success: true, count: deduplicatedStoreProducts.length, products: deduplicatedStoreProducts });
+		return res.json({ success: true, count: products.length, products });
 	}
 
 	const rawProducts = await Product.find(filter)
@@ -426,21 +433,7 @@ exports.getProducts = asyncHandler(async (req, res) => {
 		.populate("createdBy", "name email role")
 		.lean();
 
-	const seenTitles = new Set();
-	const seenImages = new Set();
-	const products = [];
-	for (const p of rawProducts) {
-		const titleKey = (p.title || "").trim().toLowerCase();
-		const imgUrl = (p.mainImage?.url || (Array.isArray(p.images) ? (typeof p.images[0] === 'string' ? p.images[0] : p.images[0]?.url) : '') || '').trim().toLowerCase();
-		if (!titleKey || seenTitles.has(titleKey)) continue;
-		if (imgUrl && seenImages.has(imgUrl)) continue;
-
-		seenTitles.add(titleKey);
-		if (imgUrl) seenImages.add(imgUrl);
-		products.push(p);
-	}
-
-	res.json({ success: true, count: products.length, products });
+	res.json({ success: true, count: rawProducts.length, products: rawProducts });
 });
 
 exports.getProduct = asyncHandler(async (req, res) => {
