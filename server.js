@@ -62,14 +62,18 @@ app.use(
 
 const PORT = process.env.PORT || 5001;
 
-const getAllowedOrigins = () => {
-  const configured = [process.env.CLIENT_URL].filter(Boolean);
-  const extra = (process.env.ADDITIONAL_ALLOWED_ORIGINS || "")
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-  return new Set([...configured, ...extra]);
-};
+// Canonical CORS allowlist. Defined in code (not only env) so it survives
+// deploys even when the hosted env vars are missing or stale, and so we never
+// fall back to the "*" wildcard. Keep this list authoritative and in sync with
+// the deployed frontend(s).
+const DEFAULT_ALLOWED_ORIGINS = [
+  "https://alairahouse.com",
+  "https://www.alairahouse.com",
+  "http://localhost:3000",
+];
+
+const getAllowedOrigins = () =>
+  new Set(DEFAULT_ALLOWED_ORIGINS);
 
 const isLocalFrontendOrigin = (origin) =>
   /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?$/.test(origin || "");
