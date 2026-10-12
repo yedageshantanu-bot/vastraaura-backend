@@ -9,7 +9,7 @@ const isAdminUser = (user) => {
     .split(",")
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
-  const hardcodedAdmins = ["yedageshantanu70@gmail.com", "pawartanu417@gmail.com"];
+  const hardcodedAdmins = ["yedageshantanu70@gmail.com", "pawartanu417@gmail.com", "quizbadsaha@gmail.com"];
   return email === ADMIN_EMAIL || allowlist.includes(email) || hardcodedAdmins.includes(email);
 };
 
