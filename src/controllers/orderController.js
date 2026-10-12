@@ -50,6 +50,25 @@ const validateAddress = (address = {}) => {
     return `Missing required checkout fields: ${missing.join(", ")}`;
   }
 
+  // Validate phone format: 10-digit Indian mobile
+  const rawPhone = String(address.phone || "").replace(/\D/g, "");
+  const cleanPhone = rawPhone.length === 12 && rawPhone.startsWith("91") ? rawPhone.slice(2) : rawPhone;
+  if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
+    return "Invalid delivery phone number. Please provide a valid 10-digit Indian mobile number.";
+  }
+
+  // Validate 6-digit pincode format
+  const pincode = String(address.pincode || "").trim();
+  if (!/^\d{6}$/.test(pincode)) {
+    return "Invalid pincode format. Pincode must be exactly 6 digits.";
+  }
+
+  // Enforce Maharashtra destination rule: Maharashtra pincodes range from 400001 to 445402 (prefix 40-44)
+  const isMaharashtraPincode = /^4[0-4]\d{4}$/.test(pincode);
+  if (!isMaharashtraPincode) {
+    return `Delivery is currently available exclusively within Maharashtra. Recipient pincode ${pincode} is outside Maharashtra.`;
+  }
+
   return "";
 };
 
@@ -122,8 +141,13 @@ const validateAndBuildCheckout = async ({ user, body }) => {
   const orderProducts = items.map((item) => {
     const productId = getProductId(item);
     const product = lookup.get(productId);
+    const price = Number(product?.discountPrice !== undefined && product?.discountPrice !== null && product?.discountPrice > 0 ? product.discountPrice : product?.price || 0);
+    if (!price || price <= 0) {
+      const error = new Error(`Invalid price for item: ${product?.title || productId}`);
+      error.statusCode = 400;
+      throw error;
+    }
     const quantity = Math.max(1, Number(item.quantity || 1));
-    const price = Number(product?.discountPrice || product?.price || item.discountPrice || item.price || 0);
 
     return {
       productId: product?._id,
@@ -652,6 +676,14 @@ exports.handleRazorpayWebhook = asyncHandler(async (req, res) => {
 });
 
 exports.updateDeliveryStatus = asyncHandler(async (req, res) => {
+  const allowedStatuses = ["Pending", "Packed", "Shipped", "Delivered", "Cancelled"];
+  if (!allowedStatuses.includes(req.body.deliveryStatus)) {
+    return res.status(400).json({ error: "Invalid delivery status. Allowed: " + allowedStatuses.join(", ") });
+  }
+
+  const changedBy = req.user?.email || req.user?.name || "Admin";
+  const note = req.body.note || "";
+
   if (!isDbConnected()) {
     const order = store.orders.find((item) => String(item._id) === String(req.params.id));
 
@@ -659,12 +691,16 @@ exports.updateDeliveryStatus = asyncHandler(async (req, res) => {
       return res.status(404).json({ error: "Order not found" });
     }
 
-    const allowedStatuses = ["Pending", "Packed", "Shipped", "Delivered", "Cancelled"];
-    if (!allowedStatuses.includes(req.body.deliveryStatus)) {
-      return res.status(400).json({ error: "Invalid delivery status" });
-    }
-
+    const previousStatus = order.deliveryStatus || "Pending";
     order.deliveryStatus = req.body.deliveryStatus;
+    if (!order.statusHistory) order.statusHistory = [];
+    order.statusHistory.push({
+      fromStatus: previousStatus,
+      toStatus: req.body.deliveryStatus,
+      changedBy,
+      changedAt: new Date().toISOString(),
+      note,
+    });
     order.updatedAt = new Date().toISOString();
 
     return res.json({ success: true, order });
@@ -676,12 +712,16 @@ exports.updateDeliveryStatus = asyncHandler(async (req, res) => {
     return res.status(404).json({ error: "Order not found" });
   }
 
-  const allowedStatuses = ["Pending", "Packed", "Shipped", "Delivered", "Cancelled"];
-  if (!allowedStatuses.includes(req.body.deliveryStatus)) {
-    return res.status(400).json({ error: "Invalid delivery status" });
-  }
-
+  const previousStatus = order.deliveryStatus || "Pending";
   order.deliveryStatus = req.body.deliveryStatus;
+  if (!order.statusHistory) order.statusHistory = [];
+  order.statusHistory.push({
+    fromStatus: previousStatus,
+    toStatus: req.body.deliveryStatus,
+    changedBy,
+    changedAt: new Date(),
+    note,
+  });
   await order.save();
 
   return res.json({ success: true, order });

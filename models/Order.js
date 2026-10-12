@@ -56,6 +56,15 @@ const orderSchema = new mongoose.Schema(
     noteMessage: { type: String, default: "" },
     giftNote: { type: String, default: "" },
     giftWrap: { type: Boolean, default: true },
+    statusHistory: [
+      {
+        fromStatus: { type: String },
+        toStatus: { type: String },
+        changedBy: { type: String, default: "Admin" },
+        changedAt: { type: Date, default: Date.now },
+        note: { type: String, default: "" },
+      },
+    ],
   },
   { timestamps: true },
 );
