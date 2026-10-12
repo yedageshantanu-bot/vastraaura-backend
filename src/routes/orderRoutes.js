@@ -9,7 +9,8 @@ router.get("/me", requireAuth, controller.getMyOrders);
 router.post("/razorpay/create", requireAuth, controller.createRazorpayOrder);
 router.post("/razorpay/verify", requireAuth, controller.verifyRazorpayPayment);
 router.get("/gift/:token", controller.getGiftByToken);
-router.get("/:id", optionalAuth, controller.getOrder);
+router.get("/reference/:reference", requireAuth, controller.getOrder);
+router.get("/:id", requireAuth, controller.getOrder);
 router.patch("/:id/status", requireAuth, adminAuth, controller.updateDeliveryStatus);
 
 module.exports = router;

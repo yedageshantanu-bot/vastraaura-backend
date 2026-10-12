@@ -111,32 +111,29 @@ const getDatabaseStatus = () => {
   }
 };
 
+// Clean 403 for disallowed CORS origins with no Access-Control-Allow-Origin header
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && !isAllowedOrigin(origin)) {
+    return res.status(403).json({ error: "CORS origin forbidden" });
+  }
+  return next();
+});
+
 // Allow the frontend app to call the API while keeping credentials enabled.
 app.use(
   cors({
     origin: (origin, callback) => {
       if (isAllowedOrigin(origin)) {
-        callback(null, true);
-        return;
+        return callback(null, true);
       }
-
-      callback(new Error(`CORS blocked for origin: ${origin}`));
+      return callback(null, false);
     },
     credentials: true,
     allowedHeaders: ["Content-Type", "Authorization", "Bypass-Tunnel-Reminder"],
   }),
 );
 app.use(cookieParser());
-app.use((req, res, next) => {
-  const unsafeMethod = !["GET", "HEAD", "OPTIONS"].includes(req.method);
-  const origin = req.headers.origin;
-
-  if (unsafeMethod && origin && !isAllowedOrigin(origin)) {
-    return res.status(403).json({ error: "Request not allowed" });
-  }
-
-  return next();
-});
 app.use("/api/payment/webhook", express.raw({ type: "application/json" }));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
@@ -172,6 +169,7 @@ app.use("/api", requireDatabase);
 app.use("/api/upload", require("./routes/uploadRoutes"));
 app.use("/api/products", require("./routes/productRoutes"));
 app.use("/api/orders", require("./routes/orderRoutes"));
+app.use("/api/gift", require("./routes/giftRoutes"));
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/users", require("./routes/userRoutes"));
 app.use("/api/coupons", require("./routes/couponRoutes"));

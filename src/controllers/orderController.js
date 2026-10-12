@@ -411,7 +411,11 @@ exports.getMyOrders = asyncHandler(async (req, res) => {
 });
 
 exports.getOrder = asyncHandler(async (req, res) => {
-  const queryId = req.params.id;
+  const queryId = req.params.id || req.params.reference;
+
+  if (!req.userId) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
 
   if (!isDbConnected()) {
     const order = store.orders.find(
@@ -422,15 +426,14 @@ exports.getOrder = asyncHandler(async (req, res) => {
       return res.status(404).json({ error: "Order not found" });
     }
 
-    if (
-      req.auth?.role !== "admin" &&
-      String(order.userId || "") !== String(req.userId) &&
-      findUserById(req.userId)?.email !== order.userEmail
-    ) {
+    const isOwner = String(order.userId || "") === String(req.userId) || findUserById(req.userId)?.email === order.userEmail;
+    const isAdmin = req.auth?.role === "admin";
+
+    if (!isAdmin && !isOwner) {
       return res.status(403).json({ error: "Order access denied" });
     }
 
-    return res.json({ success: true, order });
+    return res.json({ success: true, order: formatOrder(order) });
   }
 
   const isObjectId = mongoose.isValidObjectId(queryId);
@@ -447,10 +450,11 @@ exports.getOrder = asyncHandler(async (req, res) => {
     return res.status(404).json({ error: "Order not found" });
   }
 
-  const isOwner = req.userId && String(order.userId?._id || order.userId) === String(req.userId);
+  const orderUserId = order.userId?._id ? String(order.userId._id) : String(order.userId || "");
+  const isOwner = Boolean(req.userId && orderUserId && orderUserId === String(req.userId));
   const isAdmin = req.auth?.role === "admin";
 
-  if (!isAdmin && !isOwner && req.auth) {
+  if (!isAdmin && !isOwner) {
     return res.status(403).json({ error: "Order access denied" });
   }
 
@@ -770,59 +774,63 @@ exports.updateDeliveryStatus = asyncHandler(async (req, res) => {
   return res.json({ success: true, order });
 });
 
-// @desc    Public, privacy-preserving gift recipient lookup via safe QR token
-// @route   GET /api/orders/gift/:token
+// @desc    Public, privacy-preserving gift recipient lookup via safe unguessable token ONLY
+// @route   GET /api/gift/:token and GET /api/orders/gift/:token
 exports.getGiftByToken = asyncHandler(async (req, res) => {
   const token = String(req.params.token || "").trim();
-  if (!token) {
-    return res.status(400).json({ success: false, message: "Gift token is required" });
-  }
 
-  if (!isDbConnected()) {
-    const order = store.orders.find((item) => item.qrCode?.safeToken === token);
-    if (!order) {
-      return res.status(404).json({ success: false, message: "Gift message not found or still processing" });
-    }
-    const senderName = order.customerInfo?.name ? order.customerInfo.name.trim() : "Someone special";
-    const recipientName = order.shippingAddress?.fullName ? order.shippingAddress.fullName.trim() : "You";
-    return res.json({
-      success: true,
-      gift: {
-        orderId: order.orderId,
-        senderName,
-        recipientName,
-        letterStyle: order.letterStyle || "Classic",
-        envelopeFrontText: order.envelopeFrontText || "",
-        giftNote: order.giftNote || order.noteMessage || "",
-        mediaRecording: order.mediaRecording?.url ? order.mediaRecording : null,
-        createdAt: order.createdAt,
-      },
+  // Unguessable token validation:
+  // Must be at least 24 characters and cannot be an ObjectId, order reference (VA*, AH*), or ORD-*
+  if (
+    !token ||
+    token.length < 24 ||
+    /^VA\d+/i.test(token) ||
+    /^AH\d+/i.test(token) ||
+    /^ORD-/i.test(token) ||
+    mongoose.isValidObjectId(token)
+  ) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid gift token. A valid long unguessable token is required.",
     });
   }
 
-  const order = await Order.findOne({ "qrCode.safeToken": token })
-    .select("orderId customerInfo.name shippingAddress.fullName letterStyle envelopeFrontText noteMessage giftNote mediaRecording paymentStatus createdAt")
-    .lean();
+  let order;
+  if (!isDbConnected()) {
+    order = store.orders.find((item) => item.qrCode?.safeToken === token);
+  } else {
+    order = await Order.findOne({ "qrCode.safeToken": token })
+      .select("shippingAddress.fullName customerInfo.name letterStyle envelopeFrontText noteMessage giftNote mediaRecording")
+      .lean();
+  }
 
   if (!order) {
     return res.status(404).json({ success: false, message: "Gift message not found or still processing" });
   }
 
-  // Build clean, privacy-preserving recipient payload (strictly NO phone, address, price, or payment credentials)
-  const senderName = order.customerInfo?.name ? order.customerInfo.name.trim() : "Someone special";
-  const recipientName = order.shippingAddress?.fullName ? order.shippingAddress.fullName.trim() : "You";
+  // Recipient first name only (never full name, phone, email, address, total, or payment details)
+  const recipientFullName = order.shippingAddress?.fullName ? order.shippingAddress.fullName.trim() : "";
+  const recipientFirstName = recipientFullName ? recipientFullName.split(/\s+/)[0] : "Friend";
+  const senderFullName = order.customerInfo?.name ? order.customerInfo.name.trim() : "";
+  const senderFirstName = senderFullName ? senderFullName.split(/\s+/)[0] : "Someone special";
 
   return res.json({
     success: true,
     gift: {
-      orderId: order.orderId,
-      senderName,
-      recipientName,
+      recipientFirstName,
+      recipientName: recipientFirstName,
+      senderName: senderFirstName,
+      giftMessage: order.giftNote || order.noteMessage || "",
+      giftNote: order.giftNote || order.noteMessage || "",
       letterStyle: order.letterStyle || "Classic",
       envelopeFrontText: order.envelopeFrontText || "",
-      giftNote: order.giftNote || order.noteMessage || "",
-      mediaRecording: order.mediaRecording?.url ? order.mediaRecording : null,
-      createdAt: order.createdAt,
+      recordingUrl: order.mediaRecording?.url || "",
+      mediaRecording: order.mediaRecording?.url
+        ? {
+            url: order.mediaRecording.url,
+            kind: order.mediaRecording.kind || "video",
+          }
+        : null,
     },
   });
 });
