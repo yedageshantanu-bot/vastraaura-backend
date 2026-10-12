@@ -219,18 +219,17 @@ app.use((req, res) => {
 app.use(require("./middleware/errorHandler"));
 
 const startServer = async () => {
+  const server = app.listen(PORT, "0.0.0.0", () => {
+    console.log(`[Alaira Backend] Server listening on http://0.0.0.0:${PORT}`);
+    console.log(`[Alaira Backend] Health check active at /api/health`);
+  });
+
   try {
     console.log("[Alaira Backend] Connecting to MongoDB...");
     await connectDB();
     console.log(`[Alaira Backend] Database connected successfully: ${getDatabaseStatus()}`);
-
-    app.listen(PORT, "0.0.0.0", () => {
-      console.log(`[Alaira Backend] Server running on http://0.0.0.0:${PORT}`);
-      console.log(`[Alaira Backend] Health check available at /api/health`);
-    });
   } catch (error) {
-    console.error("[FATAL] Server startup failed:", error);
-    process.exit(1);
+    console.error("[WARNING] Initial database connection error:", error.message);
   }
 };
 
