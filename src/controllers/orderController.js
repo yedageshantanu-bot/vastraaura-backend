@@ -496,7 +496,7 @@ exports.createRazorpayOrder = asyncHandler(async (req, res) => {
 
   const qrCodeData = await generateOrderQrCode();
 
-  await Order.findOneAndUpdate(
+  const pendingOrder = await Order.findOneAndUpdate(
     { razorpayOrderId: razorpayOrder.id },
     {
       $setOnInsert: {
@@ -531,11 +531,16 @@ exports.createRazorpayOrder = asyncHandler(async (req, res) => {
 
   return res.status(201).json({
     success: true,
+    orderId: pendingOrder.orderId,
     keyId: process.env.RAZORPAY_KEY_ID,
     razorpayOrder: {
       id: razorpayOrder.id,
       amount: razorpayOrder.amount,
       currency: razorpayOrder.currency,
+    },
+    qrCode: {
+      safeToken: qrCodeData.safeToken,
+      dataUrl: qrCodeData.image,
     },
     amount: checkout.total,
     customer: {

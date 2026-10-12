@@ -20,10 +20,9 @@ const MAX_MEDIA_FILE_SIZE = 35 * 1024 * 1024; // 35 MB (safe limit for 60-90s gi
 const recordingStorage = new CloudinaryStorage({
   cloudinary,
   params: (req, file) => ({
-    folder: "alaira/recordings",
-    // Let Cloudinary infer audio vs video from the container.
-    resource_type: file.mimetype.startsWith("video/") ? "auto" : "auto",
-    allowed_formats: ["webm", "ogg", "mp4", "mpeg", "mp3", "wav", "mov"],
+    folder: process.env.CLOUDINARY_FOLDER || "alaira/recordings",
+    // In Cloudinary, all audio and video formats use resource_type: "video"
+    resource_type: "video",
     use_filename: true,
     unique_filename: true,
     overwrite: false,

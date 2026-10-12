@@ -1,6 +1,6 @@
 const GROQ_BASE = "https://api.groq.com/openai/v1";
-const DEFAULT_CHAT_MODEL = "llama-3.3-70b-versatile";
-const DEFAULT_STT_MODEL = "whisper-large-v3";
+const DEFAULT_CHAT_MODEL = process.env.GROQ_CHAT_MODEL || "openai/gpt-oss-120b";
+const DEFAULT_STT_MODEL = process.env.GROQ_STT_MODEL || "whisper-large-v3";
 
 const getApiKey = () => {
   const key = process.env.GROQ_API_KEY;

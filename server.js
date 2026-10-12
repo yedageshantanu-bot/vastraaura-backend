@@ -69,11 +69,21 @@ const PORT = process.env.PORT || 5001;
 const DEFAULT_ALLOWED_ORIGINS = [
   "https://alairahouse.com",
   "https://www.alairahouse.com",
+  "https://ecoomerce-website.pages.dev",
   "http://localhost:3000",
+  "http://localhost:3001",
 ];
 
-const getAllowedOrigins = () =>
-  new Set(DEFAULT_ALLOWED_ORIGINS);
+const getAllowedOrigins = () => {
+  const set = new Set(DEFAULT_ALLOWED_ORIGINS);
+  if (process.env.CLIENT_URL) {
+    process.env.CLIENT_URL.split(",").map((s) => s.trim()).filter(Boolean).forEach((o) => set.add(o));
+  }
+  if (process.env.ADDITIONAL_ALLOWED_ORIGINS) {
+    process.env.ADDITIONAL_ALLOWED_ORIGINS.split(",").map((s) => s.trim()).filter(Boolean).forEach((o) => set.add(o));
+  }
+  return set;
+};
 
 const isLocalFrontendOrigin = (origin) =>
   /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?$/.test(origin || "");
@@ -81,7 +91,8 @@ const isLocalFrontendOrigin = (origin) =>
 const isAllowedOrigin = (origin) =>
   !origin ||
   getAllowedOrigins().has(origin) ||
-  isLocalFrontendOrigin(origin);
+  isLocalFrontendOrigin(origin) ||
+  /^https:\/\/[a-z0-9_-]+\.ecoomerce-website\.pages\.dev$/.test(origin || "");
 
 const getDatabaseStatus = () => {
   switch (mongoose.connection.readyState) {
