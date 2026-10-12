@@ -852,4 +852,18 @@ exports.deleteAccount = asyncHandler(async (req, res) => {
   return res.json({ success: true, message: "Account deleted and data anonymized" });
 });
 
+exports.getUsers = asyncHandler(async (req, res) => {
+  if (!isDbConnected()) {
+    const users = (store.users || []).map((u) => serializeUser(u));
+    return res.json({ success: true, count: users.length, users });
+  }
+
+  const users = await User.find({})
+    .select("name email phone avatar profileImage role createdAt updatedAt lastLogin")
+    .sort({ createdAt: -1 })
+    .lean();
+
+  return res.json({ success: true, count: users.length, users });
+});
+
 exports.requireAuth = requireAuth;

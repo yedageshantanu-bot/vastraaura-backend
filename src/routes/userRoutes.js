@@ -4,10 +4,10 @@ const controller = require("../controllers/userController");
 const requireAuth = require("../middleware/auth");
 const adminAuth = require("../middleware/adminAuth");
 
-// 5 attempts per minute per IP for authentication
+// 30 attempts per minute per IP for authentication
 const authLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 5,
+  max: 30,
   message: { error: "Too many authentication attempts. Please try again in a minute." },
   standardHeaders: true,
   legacyHeaders: false,

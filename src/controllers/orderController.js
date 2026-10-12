@@ -82,16 +82,10 @@ const validateAddress = (address = {}) => {
     return "Invalid delivery phone number. Please provide a valid 10-digit Indian mobile number.";
   }
 
-  // Validate 6-digit pincode format
+  // Validate 6-digit Indian postal pincode format
   const pincode = String(address.pincode || "").trim();
   if (!/^\d{6}$/.test(pincode)) {
     return "Invalid pincode format. Pincode must be exactly 6 digits.";
-  }
-
-  // Enforce Maharashtra destination rule: Maharashtra pincodes range from 400001 to 445402 (prefix 40-44)
-  const isMaharashtraPincode = /^4[0-4]\d{4}$/.test(pincode);
-  if (!isMaharashtraPincode) {
-    return `Delivery is currently available exclusively within Maharashtra. Recipient pincode ${pincode} is outside Maharashtra.`;
   }
 
   return "";
