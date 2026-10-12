@@ -5,6 +5,9 @@ const mongoose = require("mongoose");
 const helmet = require("helmet");
 require("dotenv").config();
 
+console.log("[Alaira Backend] Initializing server on Node", process.version);
+console.log("[Alaira Backend] NODE_ENV:", process.env.NODE_ENV, "PORT:", process.env.PORT || 5001);
+
 // Enforce that all critical integration and authentication keys are set.
 const checkEnvVars = () => {
   const isProd = process.env.NODE_ENV === "production";
@@ -30,6 +33,7 @@ const checkEnvVars = () => {
       console.warn(`[WARNING] ${errMsg}. Some features may not work correctly.`);
     }
   }
+  console.log("[Alaira Backend] Critical environment variables verified.");
 };
 checkEnvVars();
 
@@ -216,16 +220,17 @@ app.use(require("./middleware/errorHandler"));
 
 const startServer = async () => {
   try {
+    console.log("[Alaira Backend] Connecting to MongoDB...");
     await connectDB();
+    console.log(`[Alaira Backend] Database connected successfully: ${getDatabaseStatus()}`);
 
-    app.listen(PORT, () => {
-      console.log(`Server running on http://localhost:${PORT}`);
-      console.log(`Database status: ${getDatabaseStatus()}`);
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`[Alaira Backend] Server running on http://0.0.0.0:${PORT}`);
+      console.log(`[Alaira Backend] Health check available at /api/health`);
     });
   } catch (error) {
-    console.error("Server startup failed");
-    console.error(error.message);
-    process.exitCode = 1;
+    console.error("[FATAL] Server startup failed:", error);
+    process.exit(1);
   }
 };
 
