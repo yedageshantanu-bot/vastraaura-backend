@@ -47,13 +47,26 @@ exports.getEnquiries = async (req, res, next) => {
 exports.updateEnquiryStatus = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    let { status } = req.body;
 
-    if (!["New", "Read", "Resolved"].includes(status)) {
-      return res.status(400).json({ success: false, error: "Invalid status" });
+    const statusMap = {
+      new: "New",
+      read: "Read",
+      replied: "Replied",
+      resolved: "Closed",
+      closed: "Closed",
+    };
+    const normalized = statusMap[String(status || "").trim().toLowerCase()] || status;
+
+    if (!["New", "Read", "Replied", "Resolved", "Closed"].includes(normalized)) {
+      return res.status(400).json({ success: false, error: "Invalid status. Allowed: New, Replied, Closed" });
     }
 
-    const enquiry = await Enquiry.findByIdAndUpdate(id, { status }, { new: true, runValidators: true }).populate("user", "name email phone avatar joinedAt role");
+    const enquiry = await Enquiry.findByIdAndUpdate(
+      id,
+      { status: normalized },
+      { returnDocument: "after", runValidators: true }
+    ).populate("user", "name email phone avatar joinedAt role");
 
     if (!enquiry) {
       return res.status(404).json({ success: false, error: "Enquiry not found" });
