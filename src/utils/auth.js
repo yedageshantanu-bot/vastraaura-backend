@@ -20,7 +20,7 @@ const resolveRole = (email) => {
     .split(",")
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
-  const hardcodedAdmins = ["yedageshantanu70@gmail.com", "pawartanu417@gmail.com"];
+  const hardcodedAdmins = ["yedageshantanu70@gmail.com", "pawartanu417@gmail.com", "quizbadsaha@gmail.com"];
   return normalized === ADMIN_EMAIL || allowlist.includes(normalized) || hardcodedAdmins.includes(normalized) ? "admin" : "customer";
 };
 

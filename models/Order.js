@@ -56,6 +56,19 @@ const orderSchema = new mongoose.Schema(
     noteMessage: { type: String, default: "" },
     giftNote: { type: String, default: "" },
     giftWrap: { type: Boolean, default: true },
+    mediaRecording: {
+      url: { type: String, default: "" },
+      kind: { type: String, enum: ["audio", "video", ""], default: "" },
+      mimeType: { type: String, default: "" },
+      duration: { type: Number, default: 0 },
+      publicId: { type: String, default: "" },
+    },
+    qrCode: {
+      safeToken: { type: String, default: "" },
+      destination: { type: String, default: "" },
+      image: { type: String, default: "" },
+      generatedAt: { type: Date, default: Date.now },
+    },
     statusHistory: [
       {
         fromStatus: { type: String },

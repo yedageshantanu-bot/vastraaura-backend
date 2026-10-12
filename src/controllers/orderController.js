@@ -21,6 +21,31 @@ const buildOrderId = async () => {
   return `${prefix}${String(count + 1).padStart(5, "0")}`;
 };
 
+const generateOrderQrCode = async (safeToken) => {
+  const token = safeToken || crypto.randomBytes(16).toString("hex");
+  const storeBase = process.env.CLIENT_URL || "https://alairahouse.com";
+  const destination = `${storeBase}/gift/${token}`;
+
+  let image = "";
+  try {
+    const qrLib = require("qrcode");
+    image = await qrLib.toDataURL(destination, {
+      width: 320,
+      margin: 2,
+      color: { dark: "#1C1924", light: "#ffffff" },
+    });
+  } catch (err) {
+    console.warn("[QR Auto-Gen Warning]", err.message);
+  }
+
+  return {
+    safeToken: token,
+    destination,
+    image,
+    generatedAt: new Date(),
+  };
+};
+
 const requiredAddressFields = ["fullName", "phone", "address", "city", "state", "pincode"];
 
 const getRazorpay = () => {
@@ -459,6 +484,17 @@ exports.createRazorpayOrder = asyncHandler(async (req, res) => {
   const letterStyle = req.body.letterStyle || "";
   const envelopeFrontText = req.body.envelopeFrontText || "";
   const noteMessage = req.body.noteMessage || req.body.note || "";
+  const mediaRecording = req.body.mediaRecording && typeof req.body.mediaRecording === "object"
+    ? {
+        url: String(req.body.mediaRecording.url || ""),
+        kind: String(req.body.mediaRecording.kind || ""),
+        mimeType: String(req.body.mediaRecording.mimeType || ""),
+        duration: Number(req.body.mediaRecording.duration || 0),
+        publicId: String(req.body.mediaRecording.publicId || ""),
+      }
+    : { url: "", kind: "", mimeType: "", duration: 0, publicId: "" };
+
+  const qrCodeData = await generateOrderQrCode();
 
   await Order.findOneAndUpdate(
     { razorpayOrderId: razorpayOrder.id },
@@ -486,6 +522,8 @@ exports.createRazorpayOrder = asyncHandler(async (req, res) => {
         noteMessage,
         giftNote: noteMessage,
         giftWrap,
+        mediaRecording,
+        qrCode: qrCodeData,
       },
     },
     { upsert: true, new: true },
@@ -725,4 +763,61 @@ exports.updateDeliveryStatus = asyncHandler(async (req, res) => {
   await order.save();
 
   return res.json({ success: true, order });
+});
+
+// @desc    Public, privacy-preserving gift recipient lookup via safe QR token
+// @route   GET /api/orders/gift/:token
+exports.getGiftByToken = asyncHandler(async (req, res) => {
+  const token = String(req.params.token || "").trim();
+  if (!token) {
+    return res.status(400).json({ success: false, message: "Gift token is required" });
+  }
+
+  if (!isDbConnected()) {
+    const order = store.orders.find((item) => item.qrCode?.safeToken === token);
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Gift message not found or still processing" });
+    }
+    const senderName = order.customerInfo?.name ? order.customerInfo.name.trim() : "Someone special";
+    const recipientName = order.shippingAddress?.fullName ? order.shippingAddress.fullName.trim() : "You";
+    return res.json({
+      success: true,
+      gift: {
+        orderId: order.orderId,
+        senderName,
+        recipientName,
+        letterStyle: order.letterStyle || "Classic",
+        envelopeFrontText: order.envelopeFrontText || "",
+        giftNote: order.giftNote || order.noteMessage || "",
+        mediaRecording: order.mediaRecording?.url ? order.mediaRecording : null,
+        createdAt: order.createdAt,
+      },
+    });
+  }
+
+  const order = await Order.findOne({ "qrCode.safeToken": token })
+    .select("orderId customerInfo.name shippingAddress.fullName letterStyle envelopeFrontText noteMessage giftNote mediaRecording paymentStatus createdAt")
+    .lean();
+
+  if (!order) {
+    return res.status(404).json({ success: false, message: "Gift message not found or still processing" });
+  }
+
+  // Build clean, privacy-preserving recipient payload (strictly NO phone, address, price, or payment credentials)
+  const senderName = order.customerInfo?.name ? order.customerInfo.name.trim() : "Someone special";
+  const recipientName = order.shippingAddress?.fullName ? order.shippingAddress.fullName.trim() : "You";
+
+  return res.json({
+    success: true,
+    gift: {
+      orderId: order.orderId,
+      senderName,
+      recipientName,
+      letterStyle: order.letterStyle || "Classic",
+      envelopeFrontText: order.envelopeFrontText || "",
+      giftNote: order.giftNote || order.noteMessage || "",
+      mediaRecording: order.mediaRecording?.url ? order.mediaRecording : null,
+      createdAt: order.createdAt,
+    },
+  });
 });

@@ -165,6 +165,9 @@ app.use("/api/payment", require("./routes/paymentRoutes"));
 app.use("/api/combos", require("./routes/comboRoutes"));
 app.use("/api/enquiries", require("./routes/enquiryRoutes"));
 app.use("/api/settings", require("./routes/settingRoutes"));
+app.use("/api/recordings", require("./routes/recordingRoutes"));
+app.use("/api/qr", require("./routes/qrRoutes"));
+app.use("/api/ai", require("./routes/aiRoutes"));
 
 app.get("/api/categories", (req, res) => {
   res.json([
