@@ -1,7 +1,7 @@
 {
   "name": "server",
   "version": "1.0.0",
-  "description": "VastraAura mock-first Express API",
+  "description": "Alaira House Express API",
   "main": "index.js",
   "scripts": {
     "dev": "nodemon server.js",

@@ -11,7 +11,7 @@ const fetchGooglePublicKeys = async () => {
     return cachedKeys;
   }
 
-  console.log("[VastraAura Backend] Fetching fresh Google public certificates...");
+  console.log("[Alaira Backend] Fetching fresh Google public certificates...");
   try {
     const response = await fetch(GOOGLE_CERTS_URL);
     if (!response.ok) {
@@ -25,7 +25,7 @@ const fetchGooglePublicKeys = async () => {
     keysExpiryTime = now + 1000 * 60 * 60;
     return cachedKeys;
   } catch (error) {
-    console.error("[VastraAura Backend] Failed to fetch Google certificates", error);
+    console.error("[Alaira Backend] Failed to fetch Google certificates", error);
     if (cachedKeys) {
       // Fallback to expired cached keys if fetch fails
       return cachedKeys;

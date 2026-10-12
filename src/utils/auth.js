@@ -1,7 +1,7 @@
 const jwt = require("jsonwebtoken");
 
-const ADMIN_EMAIL = String(process.env.ADMIN_EMAIL || "admin@vastraaura.com").trim().toLowerCase();
-const JWT_COOKIE_NAME = "vastraaura_token";
+const ADMIN_EMAIL = String(process.env.ADMIN_EMAIL || "support@alairahouse.com").trim().toLowerCase();
+const JWT_COOKIE_NAME = "alaira_token";
 const AUTH_ISSUER = "alaira-api";
 const AUTH_AUDIENCE = "alaira-web";
 const GOOGLE_STATE_AUDIENCE = "alaira-google-state";
@@ -20,7 +20,7 @@ const resolveRole = (email) => {
     .split(",")
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
-  const hardcodedAdmins = ["yedageshantanu70@gmail.com", "pawartanu417@gmail.com", "quizbadsaha@gmail.com"];
+  const hardcodedAdmins = ["yedageshantanu70@gmail.com", "pawartanu417@gmail.com"];
   return normalized === ADMIN_EMAIL || allowlist.includes(normalized) || hardcodedAdmins.includes(normalized) ? "admin" : "customer";
 };
 
@@ -99,14 +99,16 @@ const sendAuthCookie = (res, user) => {
 };
 
 const clearAuthCookie = (res) => {
-  res.clearCookie(JWT_COOKIE_NAME, {
+  const cookieOpts = {
     path: "/",
     sameSite: "none",
     secure:
       process.env.NODE_ENV === "production" ||
       process.env.CLIENT_URL?.startsWith("https://") ||
       process.env.CLIENT_URL?.includes("localhost"),
-  });
+  };
+  res.clearCookie("alaira_token", cookieOpts);
+  res.clearCookie("vastraaura_token", cookieOpts);
 };
 
 const getFrontendUrl = () =>

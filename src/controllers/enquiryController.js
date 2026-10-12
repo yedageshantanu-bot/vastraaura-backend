@@ -4,12 +4,20 @@ exports.createEnquiry = async (req, res, next) => {
   try {
     const { name, email, phone, message } = req.body;
 
+    if (!name || !email || !message) {
+      return res.status(400).json({ success: false, error: "Name, email, and message are required" });
+    }
+
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      return res.status(400).json({ success: false, error: "Please provide a valid email address" });
+    }
+
     const enquiry = await Enquiry.create({
-      name,
-      email,
-      phone,
-      message,
-      user: req.userId, // Assumes `protect` middleware runs first and sets req.userId
+      name: String(name).trim().slice(0, 100),
+      email: String(email).trim().toLowerCase().slice(0, 120),
+      phone: phone ? String(phone).trim().slice(0, 20) : "",
+      message: String(message).trim().slice(0, 2000),
+      user: req.userId || null,
     });
 
     res.status(201).json({

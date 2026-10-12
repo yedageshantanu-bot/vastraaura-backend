@@ -1,10 +1,10 @@
 const router = require("express").Router();
 const controller = require("../controllers/enquiryController");
-const requireAuth = require("../middleware/auth");
+const { requireAuth, optionalAuth } = require("../middleware/auth");
 const adminAuth = require("../middleware/adminAuth");
 
-// User routes
-router.post("/", requireAuth, controller.createEnquiry);
+// User routes (guest or authenticated)
+router.post("/", optionalAuth, controller.createEnquiry);
 
 // Admin routes
 router.get("/", requireAuth, adminAuth, controller.getEnquiries);

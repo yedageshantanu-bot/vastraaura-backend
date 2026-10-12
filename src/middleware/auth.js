@@ -14,7 +14,7 @@ const User = require("../../models/User");
 
 const getToken = (req) => {
   const headerToken = req.headers.authorization?.replace("Bearer ", "");
-  const cookieToken = req.cookies?.[JWT_COOKIE_NAME];
+  const cookieToken = req.cookies?.alaira_token || req.cookies?.vastraaura_token || req.cookies?.[JWT_COOKIE_NAME];
 
   return headerToken || cookieToken || "";
 };
