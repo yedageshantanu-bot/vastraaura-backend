@@ -17,7 +17,8 @@ const store = require("../data/store");
 
 const buildOrderId = async () => {
   const count = await Order.countDocuments();
-  return `VA${String(count + 1).padStart(5, "0")}`;
+  const prefix = process.env.ORDER_ID_PREFIX || "AH";
+  return `${prefix}${String(count + 1).padStart(5, "0")}`;
 };
 
 const requiredAddressFields = ["fullName", "phone", "address", "city", "state", "pincode"];

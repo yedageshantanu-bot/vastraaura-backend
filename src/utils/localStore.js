@@ -106,7 +106,7 @@ const createOrder = ({ user, body }) => {
   const { items = [], address, subtotal, couponCode, couponDiscount = 0, total, paymentMethod } = body;
   const order = {
     _id: nextId("o", store.orders),
-    orderId: `VA${String(store.orders.length + 1).padStart(5, "0")}`,
+    orderId: `${process.env.ORDER_ID_PREFIX || "AH"}${String(store.orders.length + 1).padStart(5, "0")}`,
     userId: user._id,
     userEmail: user.email,
     customer: address?.fullName || user.name,

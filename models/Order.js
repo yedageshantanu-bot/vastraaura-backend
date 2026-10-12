@@ -63,7 +63,8 @@ const orderSchema = new mongoose.Schema(
 orderSchema.pre("save", async function autoOrderId() {
   if (!this.orderId) {
     const count = await mongoose.model("Order").countDocuments();
-    this.orderId = `VA${String(count + 1).padStart(5, "0")}`;
+    const prefix = process.env.ORDER_ID_PREFIX || "AH";
+    this.orderId = `${prefix}${String(count + 1).padStart(5, "0")}`;
   }
 });
 

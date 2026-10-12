@@ -215,10 +215,10 @@ exports.validateCoupon = async (req, res) => {
   const discount = calculateDiscount(subtotal, coupon);
   return res.json({
     valid: true,
-    message: `Coupon applied. You saved ${discount}.`,
-    coupon,
+    message: `Coupon applied. You saved ₹${discount}.`,
+    code: coupon.code,
+    type: coupon.type,
     discount,
-    amount: discount,
     subtotal,
     total: Math.max(subtotal - discount, 0),
   });
