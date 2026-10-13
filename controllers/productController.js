@@ -346,6 +346,7 @@ const buildProductPayload = (req, existingProduct) => {
 		tags: req.body.tags !== undefined ? toArray(req.body.tags) : existingProduct?.tags || [],
 		featured: toBoolean(req.body.featured, existingProduct?.featured ?? false),
 		isActive: toBoolean(req.body.isActive, existingProduct?.isActive ?? true),
+		photoNeedsReview: toBoolean(req.body.photoNeedsReview, existingProduct?.photoNeedsReview ?? false),
 		displayOrder: toNumber(req.body.displayOrder, existingProduct?.displayOrder ?? 0),
 		createdBy: req.body.createdBy || existingProduct?.createdBy,
 		ratings: parseMaybeJson(req.body.ratings, existingProduct?.ratings || { average: 0, count: 0 }),

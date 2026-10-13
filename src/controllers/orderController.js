@@ -794,7 +794,7 @@ exports.getGiftByToken = asyncHandler(async (req, res) => {
     order = store.orders.find((item) => item.qrCode?.safeToken === token);
   } else {
     order = await Order.findOne({ "qrCode.safeToken": token })
-      .select("shippingAddress.fullName customerInfo.name letterStyle envelopeFrontText noteMessage giftNote mediaRecording")
+      .select("shippingAddress.fullName noteMessage giftNote mediaRecording")
       .lean();
   }
 
@@ -805,24 +805,19 @@ exports.getGiftByToken = asyncHandler(async (req, res) => {
   // Recipient first name only (never full name, phone, email, address, total, or payment details)
   const recipientFullName = order.shippingAddress?.fullName ? order.shippingAddress.fullName.trim() : "";
   const recipientFirstName = recipientFullName ? recipientFullName.split(/\s+/)[0] : "Friend";
-  const senderFullName = order.customerInfo?.name ? order.customerInfo.name.trim() : "";
-  const senderFirstName = senderFullName ? senderFullName.split(/\s+/)[0] : "Someone special";
+  const recordingUrl = order.mediaRecording?.url || "";
 
   return res.json({
     success: true,
     gift: {
       recipientFirstName,
-      recipientName: recipientFirstName,
-      senderName: senderFirstName,
       giftMessage: order.giftNote || order.noteMessage || "",
-      giftNote: order.giftNote || order.noteMessage || "",
-      letterStyle: order.letterStyle || "Classic",
-      envelopeFrontText: order.envelopeFrontText || "",
-      recordingUrl: order.mediaRecording?.url || "",
-      mediaRecording: order.mediaRecording?.url
+      recordingUrl,
+      recordingUrls: recordingUrl ? [recordingUrl] : [],
+      mediaRecording: recordingUrl
         ? {
-            url: order.mediaRecording.url,
-            kind: order.mediaRecording.kind || "video",
+            url: recordingUrl,
+            kind: order.mediaRecording?.kind || "video",
           }
         : null,
     },

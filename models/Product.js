@@ -101,6 +101,7 @@ const productSchema = new mongoose.Schema(
     tags: [{ type: String, trim: true }],
     featured: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
+    photoNeedsReview: { type: Boolean, default: false },
     displayOrder: { type: Number, default: 0 },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     ratings: {
