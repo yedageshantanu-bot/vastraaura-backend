@@ -11,7 +11,7 @@ const router = express.Router();
 // product-image pipeline allows, so recordings get their own memory uploader.
 const memoryUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 150 * 1024 * 1024 }, // 150 MB
+  limits: { fileSize: 25 * 1024 * 1024 }, // 25 MB max aligned with Groq Whisper audio limits
 });
 
 const MEDIA_FIELD = "file";
@@ -31,7 +31,21 @@ const MEDIA_FILTER = (req, file, cb) => {
 };
 const mediaUpload = memoryUpload.single(MEDIA_FIELD, MEDIA_FILTER);
 
-// All AI endpoints are authenticated and admin-only.
+const { optionalAuth } = require("../src/middleware/auth");
+const rateLimit = require("express-rate-limit");
+
+const aiRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 12,
+  message: { success: false, message: "AI rate limit reached. Please wait a minute before analyzing more text." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Voluntary user-controlled text analysis (accessible without mandatory admin privileges, strictly rate-limited)
+router.post("/analyze-text", aiRateLimiter, optionalAuth, analysisController.createAnalysis);
+
+// All subsequent AI administration endpoints are authenticated and admin-only.
 router.use(requireAuth, adminAuth);
 
 // --- Notes ---

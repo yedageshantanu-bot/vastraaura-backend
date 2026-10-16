@@ -218,7 +218,8 @@ exports.createAnalysis = asyncHandler(async (req, res) => {
   }
 
   const body = req.body || {};
-  const { scope, noteId, text, title, context = "", save = true } = body;
+  const { scope = "text", noteId, text, title, context = "" } = body;
+  const shouldSave = body.save === true && Boolean(req.userId);
 
   const payload = await buildSourcePayload({ scope, noteId, text });
   if (payload.error) {
@@ -231,7 +232,7 @@ exports.createAnalysis = asyncHandler(async (req, res) => {
     context,
   });
 
-  if (save) {
+  if (shouldSave) {
     const analysis = await AiAnalysis.create({
       title: title || result.title,
       summary: result.summary,

@@ -3,6 +3,7 @@ const User = require("../../models/User");
 const Coupon = require("../../models/Coupon");
 const Product = require("../../models/Product");
 const Setting = require("../models/Setting");
+const MediaRecording = require("../../models/MediaRecording");
 const asyncHandler = require("../../middleware/asyncHandler");
 const Razorpay = require("razorpay");
 const crypto = require("crypto");
@@ -492,7 +493,20 @@ exports.createRazorpayOrder = asyncHandler(async (req, res) => {
       }
     : { url: "", kind: "", mimeType: "", duration: 0, publicId: "" };
 
-  const qrCodeData = await generateOrderQrCode();
+  const hasGiftContent = Boolean(mediaRecording.url || noteMessage);
+  let qrCodeData = {
+    safeToken: "",
+    destination: "",
+    image: "",
+    generatedAt: new Date(),
+  };
+  if (hasGiftContent) {
+    try {
+      qrCodeData = await generateOrderQrCode();
+    } catch (qrErr) {
+      console.warn("[Order QR Generation Warning]", qrErr.message);
+    }
+  }
 
   const pendingOrder = await Order.findOneAndUpdate(
     { razorpayOrderId: razorpayOrder.id },
@@ -789,37 +803,64 @@ exports.getGiftByToken = asyncHandler(async (req, res) => {
     });
   }
 
-  let order;
+  let order = null;
+  let mediaRec = null;
+
   if (!isDbConnected()) {
     order = store.orders.find((item) => item.qrCode?.safeToken === token);
   } else {
     order = await Order.findOne({ "qrCode.safeToken": token })
       .select("shippingAddress.fullName noteMessage giftNote mediaRecording")
       .lean();
+
+    if (!order) {
+      mediaRec = await MediaRecording.findOne({ "qrCode.safeToken": token }).lean();
+    }
   }
 
-  if (!order) {
+  if (!order && !mediaRec) {
     return res.status(404).json({ success: false, message: "Gift message not found or still processing" });
   }
 
-  // Recipient first name only (never full name, phone, email, address, total, or payment details)
-  const recipientFullName = order.shippingAddress?.fullName ? order.shippingAddress.fullName.trim() : "";
-  const recipientFirstName = recipientFullName ? recipientFullName.split(/\s+/)[0] : "Friend";
-  const recordingUrl = order.mediaRecording?.url || "";
+  if (order) {
+    // Recipient first name only (never full name, phone, email, address, total, or payment details)
+    const recipientFullName = order.shippingAddress?.fullName ? order.shippingAddress.fullName.trim() : "";
+    const recipientFirstName = recipientFullName ? recipientFullName.split(/\s+/)[0] : "Friend";
+    const recordingUrl = order.mediaRecording?.url || "";
 
+    return res.json({
+      success: true,
+      gift: {
+        recipientFirstName,
+        giftMessage: order.giftNote || order.noteMessage || "",
+        recordingUrl,
+        recordingUrls: recordingUrl ? [recordingUrl] : [],
+        mediaRecording: recordingUrl
+          ? {
+              url: recordingUrl,
+              kind: order.mediaRecording?.kind || "video",
+            }
+          : null,
+      },
+    });
+  }
+
+  // Standalone media recording
+  const recordingUrl = mediaRec.url || "";
   return res.json({
     success: true,
     gift: {
-      recipientFirstName,
-      giftMessage: order.giftNote || order.noteMessage || "",
+      recipientFirstName: mediaRec.title || "Special Recipient",
+      giftMessage: mediaRec.description || "A personalized video message has been recorded for you.",
       recordingUrl,
       recordingUrls: recordingUrl ? [recordingUrl] : [],
       mediaRecording: recordingUrl
         ? {
             url: recordingUrl,
-            kind: order.mediaRecording?.kind || "video",
+            kind: mediaRec.kind || "video",
           }
         : null,
     },
   });
+
 });

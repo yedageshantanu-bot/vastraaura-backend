@@ -15,12 +15,19 @@ const mediaRecordingSchema = new mongoose.Schema(
     linkedNote: { type: mongoose.Schema.Types.ObjectId, ref: "AiNote" },
     tags: { type: [String], default: [] },
     metadata: { type: Object, default: {} },
+    qrCode: {
+      safeToken: { type: String, default: "" },
+      destination: { type: String, default: "" },
+      image: { type: String, default: "" },
+      generatedAt: { type: Date, default: Date.now },
+    },
   },
   { timestamps: true }
 );
 
 mediaRecordingSchema.index({ user: 1, createdAt: -1 });
 mediaRecordingSchema.index({ kind: 1, createdAt: -1 });
+mediaRecordingSchema.index({ "qrCode.safeToken": 1 });
 
 module.exports =
   mongoose.models.MediaRecording ||
